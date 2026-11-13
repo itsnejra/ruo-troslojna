@@ -1,0 +1,5 @@
+# Sve tekstualne datoteke s LF krajevima reda: skripte i šabloni se izvršavaju na Linuxu,
+# a repozitorij se može otvoriti i iz Windowsa (WSL2).
+* text=auto eol=lf
+*.png binary
+*.svg text

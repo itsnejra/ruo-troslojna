@@ -1,0 +1,41 @@
+# --- Terraform (AO-3: state nikad u Gitu; sadrži i ključeve servera) ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+# .terraform.lock.hcl IDE u Git (zaključane verzije providera)
+
+# --- tajne (AO-9): u Git ide samo vault.yml.example ---
+.vault_pass
+**/vault.yml
+.env
+*.env
+!*.env.example
+.secrets/
+*.key
+*.pem
+id_*
+!id_*.pub
+
+# --- generisano iz Terraforma (DO-6): izvedeni artefakti, ne izvor istine ---
+ansible/inventory/hosts.yml
+ansible/inventory/group_vars/all/generated.yml
+ansible/known_hosts
+ansible/collections/
+
+# --- artefakti izgradnje (DO-4, DO-5) ---
+build/
+packer/output*/
+*.qcow2
+*.img
+*.tar
+
+# --- ostalo ---
+__pycache__/
+*.pyc
+.venv/
+*.retry
+docs/pdf/*.pdf

@@ -1,0 +1,74 @@
+# Produkcijski opis aplikacije: jedna datoteka za cijeli sistem, a svaki VM pokreće samo svoj
+# profil (web1: --profile web, app1: --profile app, db1: --profile db). Ansible (rola app) postavlja
+# ovu datoteku u /opt/ruo zajedno s .env datotekom generisanom iz inventoryja.
+#
+# Mrežna odluka (DO-2): network_mode: host. VM je jedinica mrežne izolacije (segment), a njegov
+# nftables je jedini vatrozid. Nema "ports:", nema Docker DNAT-a, pa ni zaobilaženja vatrozida VM-a.
+# Baza zato NEMA objavljen port (AO-6). U ovoj datoteci nema nijedne IP adrese (AO-7).
+#
+# Vrijednosti ${...:?} su obavezne: compose odbija pokretanje ako nisu postavljene.
+name: ruo
+
+services:
+  frontend:
+    profiles: [web]
+    image: ruo/frontend:${APP_TAG:?postaviti APP_TAG}
+    pull_policy: never              # slike stižu kao arhive s kontrolnog čvora (DO-5)
+    network_mode: host
+    environment:
+      BACKEND_HOST: backend.${RUO_ZONE:?postaviti RUO_ZONE}   # sloj 1 -> sloj 2 preko DNS imena
+      BACKEND_PORT: "8000"
+    read_only: true
+    tmpfs: [/var/cache/nginx, /var/run, /tmp, /etc/nginx/conf.d]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  backend:
+    profiles: [app]
+    image: ruo/backend:${APP_TAG:?postaviti APP_TAG}
+    pull_policy: never
+    network_mode: host
+    environment:
+      APP_VERSION: ${APP_TAG}
+      DB_HOST: db.${RUO_ZONE:?postaviti RUO_ZONE}              # sloj 2 -> sloj 3 preko DNS imena
+      DB_NAME: ruo
+      DB_USER: ruo
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]          # na app1 datoteka pripada UID-u 10001 (korisnik iz slike), 0400
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  db:
+    profiles: [db]
+    image: ${DB_IMAGE:?postaviti DB_IMAGE}                     # postgres:17-alpine@sha256:... (pin digestom)
+    pull_policy: never
+    network_mode: host              # sluša na adresi db1; ko smije doći određuju nftables i pg_hba
+    environment:
+      POSTGRES_DB: ruo
+      POSTGRES_USER: ruo
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      # Poddirektorij: korijen montiranog diska sadrži lost+found, a initdb traži prazan direktorij.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command: ["postgres", "-c", "hba_file=/etc/ruo/pg_hba.conf"]
+    volumes:
+      # AO-10: podaci su na zasebnom libvirt disku montiranom u ${RUO_DATA_DIR} na db1,
+      # pa nadžive kontejner (i root disk VM-a).
+      - ${RUO_DATA_DIR:?postaviti RUO_DATA_DIR}:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ${RUO_ETC_DIR:?postaviti RUO_ETC_DIR}/pg_hba.conf:/etc/ruo/pg_hba.conf:ro   # samo app podmreža (šablon iz Ansible-a)
+    secrets: [db_password]          # na db1 datoteka pripada UID-u 70 (postgres u alpine slici), 0400
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "ruo", "-d", "ruo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    shm_size: 128mb
+    restart: unless-stopped
+
+secrets:
+  db_password:
+    file: ${RUO_SECRETS_DIR:?postaviti RUO_SECRETS_DIR}/db_password

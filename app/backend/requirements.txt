@@ -1,0 +1,5 @@
+# Tačne verzije: ista slika daje isti rezultat pri svakoj izgradnji (DO-5).
+fastapi==0.115.12
+uvicorn==0.34.0
+psycopg[binary]==3.2.6
+psycopg-pool==3.2.6

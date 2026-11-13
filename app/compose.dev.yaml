@@ -1,0 +1,64 @@
+# Razvojni compose: cijela aplikacija na jednom računaru, bez VM-ova (make dev-up).
+# Služi za brz razvoj aplikacije; NIJE produkcijski raspored (taj je u compose.yaml, DO-2).
+#
+# Segmenti su ovdje Docker mreže, a kontejner je samo na mrežama koje mu trebaju (varijanta A iz DO-2):
+#   frontend: web + app    backend: app + db    db: samo db
+# Mreže app i db su internal (bez izlaza), a frontend nema sučelje u mreži db, pa nema ni puta do baze.
+name: ruo-dev
+
+services:
+  frontend:
+    build: ./frontend
+    image: ruo/frontend:dev
+    ports: ["8080:80"]              # jedini objavljeni port (ulaz izvana)
+    environment:
+      BACKEND_HOST: backend         # ime servisa; ugrađeni Docker DNS (u produkciji: BIND)
+    networks: [web, app]
+    depends_on:
+      backend: { condition: service_healthy }
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    image: ruo/backend:dev
+    environment:
+      DB_HOST: db
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    networks: [app, db]
+    depends_on:
+      db: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ruo
+      POSTGRES_USER: ruo
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data          # imenovani volumen: podaci nadžive kontejner
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    secrets: [db_password]
+    networks: [db]                  # bez objavljenog porta
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "ruo", "-d", "ruo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+secrets:
+  db_password:
+    file: ../.secrets/db_password   # generiše make dev-secret; .secrets/ je u .gitignore
+
+volumes:
+  pgdata:
+
+networks:
+  web: {}
+  app: { internal: true }
+  db: { internal: true }
