@@ -9,7 +9,10 @@ resolver ${NGINX_LOCAL_RESOLVERS} valid=30s ipv6=off;
 resolver_timeout 3s;
 
 server {
+    # Oba protokola: "localhost" se u kontejneru (i na VM-u) razrješava prvo u ::1, pa bi nginx
+    # koji sluša samo IPv4 odbijao lokalnu provjeru zdravlja (Connection refused).
     listen 80;
+    listen [::]:80;
     server_name _;
     server_tokens off;
 
