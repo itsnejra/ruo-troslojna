@@ -21,7 +21,7 @@ TF_VM   := terraform -chdir=terraform/vm
 banner = printf '\n\033[1;36m== %s\033[0m\n' '$(1)'
 need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (Preduslovi)."; exit 1; }
 
-.PHONY: help check image ssh-key infra infra-plan infra-destroy test-vm test-ipdev-secret dev-up dev-test dev-persist dev-down dev-clean
+.PHONY: help check image ssh-key infra infra-plan infra-destroy test-vm test-ip dev-secret dev-up dev-test dev-persist dev-down dev-clean
 
 ##@ Pomoć
 help: ## ovaj popis
