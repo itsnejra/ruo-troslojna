@@ -1,0 +1,52 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# Vatrozid VM-a {{ inventory_hostname }}. Generisano iz mreza_politika (group_vars/all/main.yml);
+# ručne izmjene se prepisuju pri sljedećem izvršavanju.
+#
+# VM je u potpunosti pod kontrolom ovog koda (Docker ne upravlja iptables-om, DO-2), pa datoteka
+# opisuje CIJELO stanje vatrozida: "flush ruleset" briše sve što nije odavde.
+flush ruleset
+{% set seg = ruo_hosts[inventory_hostname].segment %}
+{% set gw = ruo_segments[seg].gateway %}
+
+table inet ruo {
+  # promet KA ovom VM-u: zadano je zabrana, dozvole se nabrajaju
+  chain input {
+    type filter hook input priority filter; policy drop;
+
+    iif "lo" accept
+    ct state established,related accept      # odgovori na dozvoljene veze
+    ct state invalid drop
+
+    # upravljanje: samo host (njegova adresa u segmentu {{ seg }} je gateway {{ gw }})
+    ip saddr {{ gw }} tcp dport {{ ruo_ports.ssh }} accept comment "admin: ssh"
+    ip saddr {{ gw }} icmp type echo-request limit rate 5/second accept comment "admin: ping"
+{% for r in fw_admin_dodatno %}
+{% for proto in ['tcp', 'udp'] if r[proto] is defined %}
+    ip saddr {{ gw }} {{ proto }} dport { {{ r[proto] | join(', ') }} } accept comment "admin: {{ r.opis }}"
+{% endfor %}
+{% endfor %}
+
+    # politika: ko smije u segment {{ seg }}
+{% for p in mreza_politika if p.do == seg %}
+{% set izvori = [] %}
+{% for o in p.od %}{% set _ = izvori.append(ruo_client.cidr if o == 'klijent' else ruo_segments[o].cidr) %}{% endfor %}
+{% for proto in ['tcp', 'udp'] if p[proto] is defined %}
+    ip saddr { {{ izvori | join(', ') }} } {{ proto }} dport { {{ p[proto] | join(', ') }} } accept comment "{{ p.opis }}"
+{% endfor %}
+{% endfor %}
+
+    limit rate 5/minute log prefix "ruo-vm-drop: "
+    counter drop
+  }
+
+  # VM ne usmjerava promet (nije ruter; Docker radi bez mreže, ip-forward je isključen)
+  chain forward {
+    type filter hook forward priority filter; policy drop;
+  }
+
+  # izlaz se ograničava na ruteru (host), gdje segmenti ionako nemaju put prema internetu
+  chain output {
+    type filter hook output priority filter; policy accept;
+  }
+}

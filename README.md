@@ -4,7 +4,7 @@ Projektni zadatak iz predmeta **Računarstvo u oblaku** (Politehnički fakultet,
 
 Infrastruktura za web aplikaciju s frontendom, backendom i bazom podataka, opisana isključivo kodom: virtuelne mašine (Terraform + libvirt), početna konfiguracija (cloud-init), konfiguracija servera (Ansible), kontejneri (Docker), segmentirana mreža (libvirt `route` mreže + nftables) i DNS (BIND, zapisi kao Terraform resursi).
 
-> **Status:** u izradi. Gotove su faza 1 (aplikacija i lokalni razvoj) i faza 2 (zlatna slika i VM-ovi). Slijede Ansible (konfiguracija, vatrozid, DNS server), DNS zapisi i isporuka aplikacije, a ovaj README se dopunjava uz svaku fazu.
+> **Status:** u izradi. Gotove su faza 1 (aplikacija), faza 2 (zlatna slika i VM-ovi) i faza 3 (Ansible: ruter, vatrozid, Docker, DNS server). Slijede DNS zapisi iz Terraforma i isporuka aplikacije.
 
 ## Infrastruktura (faza 2)
 
@@ -28,6 +28,38 @@ Jedini IP literal u kodu je `project_cidr = "10.20.0.0/16"` (`terraform/vm/varia
 | klijent | 10.20.255.0/30 | 10.20.255.1 | (namespace) | 10.20.255.2 | simulirani internet |
 
 Adrese su statičke (cloud-init `network-config`, netplan), a na projektnim mrežama nema DHCP-a ni dnsmasq-a. Resolver svakog VM-a je ns1.
+
+## Konfiguracija i izolacija (faza 3)
+
+`make config` pokreće `ansible/config.yml` (AO-5). Traži sudo lozinku hosta, jer rola `router` mijenja host.
+
+| Rola | Gdje | Šta radi |
+|---|---|---|
+| `router` | host (WSL) | tabela `inet ruo3t`: default deny **samo** za promet projektnih sučelja (tuđi promet na hostu ne dira); namespace `ruo-klijent` kao „internet" |
+| `common` | svi VM-ovi | čeka SSH i cloud-init, `/etc/ruo` |
+| `firewall` | svi VM-ovi | nftables `input`: SSH samo s hosta, ulaz iz politike, `flush ruleset` (VM je u potpunosti naš) |
+| `docker` | web, app, db | `daemon.json`: `iptables: false`, `bridge: none`, `ip-forward: false` (kontejneri koriste mrežu VM-a) |
+| `bind` | ns1 | autoritativni BIND: `ruo.internal` i `20.10.in-addr.arpa`, `recursion no`, AXFR samo uz ključ, TSIG ključ po zoni i samo za navedene tipove zapisa |
+
+**Politika mreže je podatak** (`ansible/inventory/group_vars/all/main.yml`, `mreza_politika`). Iz istog popisa nastaju pravila rutera i ulazna pravila VM-ova, pa se dva nivoa zaštite ne mogu razići:
+
+| Od | Do | Port |
+|---|---|---|
+| klijent (internet) | web | tcp/80 |
+| web | app | tcp/8000 |
+| app | db | tcp/5432 |
+| klijent, web, app, db | infra | tcp+udp/53 |
+| sve ostalo | | **odbijeno** (i izlaz segmenata prema internetu) |
+
+**Tajne** (`make secrets`, AO-9): `.vault_pass` i `ansible/inventory/group_vars/all/vault.yml` (AES256) se generišu pri prvom pokretanju i nisu u Gitu. U Gitu je samo `vault.yml.example`.
+
+```bash
+make config           # Ansible (sudo lozinka hosta)
+make config           # drugi put: changed=0 (idempotentnost)
+make test-isolation   # AO-6: matrica povezivosti (sudo)
+```
+
+## Pokretanje infrastrukture
 
 ```bash
 make infra        # slika (ako treba) + VM-ovi

@@ -1,0 +1,6 @@
+# Host (WSL) je ruter između segmenata (DO-2). Tabela nosi ime projekta i ne dira tuđa pravila
+# (libvirt, Docker, labovi predmeta koji koriste tabelu "inet ruo").
+router_table: ruo3t
+router_dir: /etc/ruo
+router_nft: "{{ router_dir }}/{{ router_table }}.nft"
+router_ns_script: /usr/local/sbin/ruo-klijent-ns

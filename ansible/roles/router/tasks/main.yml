@@ -1,0 +1,57 @@
+# Ruter na hostu (AO-6): centralna politika između segmenata + namespace "internet".
+
+- name: Host prosljeđuje pakete između segmenata
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_file: /etc/sysctl.d/60-ruo.conf
+    sysctl_set: true
+    state: present
+
+- name: Skripta za namespace klijenta
+  ansible.builtin.copy:
+    src: ruo-klijent-ns.sh
+    dest: "{{ router_ns_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Namespace {{ ruo_client.netns }} (simulirani internet) i veth prema hostu
+  ansible.builtin.command: >-
+    {{ router_ns_script }} up {{ ruo_client.netns }} {{ ruo_client.veth }}
+    {{ ruo_client.host_ip }}/{{ ruo_client.cidr.split('/')[1] }}
+    {{ ruo_client.ip }}/{{ ruo_client.cidr.split('/')[1] }}
+    {{ ruo_client.host_ip }} {{ ruo_dns_server }} {{ ruo_zone }}
+  register: router_ns
+  changed_when: "'PROMJENA' in router_ns.stdout"
+
+- name: Direktorij za pravila
+  ansible.builtin.file:
+    path: "{{ router_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Pravila rutera iz politike (nft -c provjerava PRIJE zamjene datoteke)
+  ansible.builtin.template:
+    src: ruo3t.nft.j2
+    dest: "{{ router_nft }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: nft -c -f %s
+  notify: Učitaj pravila rutera
+
+# Restart WSL-a briše pravila iz jezgre, a datoteka ostaje: bez ove provjere handler se ne bi
+# pokrenuo i segmenti bi ostali otvoreni. Rola zato provjerava stanje jezgre, ne samo datoteku.
+- name: Provjeri da su pravila rutera učitana
+  ansible.builtin.command: nft list table inet {{ router_table }}
+  register: router_tabela
+  changed_when: false
+  failed_when: false
+
+- name: Učitaj pravila rutera ako ih nema u jezgri
+  ansible.builtin.command: nft -f {{ router_nft }}
+  when: router_tabela.rc != 0
+  changed_when: true

@@ -1,0 +1,16 @@
+# Docker je u zlatnoj slici, ali isključen (DO-4): ovdje dobija konfiguraciju i tek onda se pokreće,
+# pa nikad ne radi sa zadanim postavkama (bridge + iptables).
+- name: Konfiguracija Docker daemona
+  ansible.builtin.copy:
+    content: "{{ docker_daemon | to_nice_json }}\n"
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restartuj docker
+
+- name: Docker radi i pokreće se s VM-om
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true

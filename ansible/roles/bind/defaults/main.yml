@@ -1,0 +1,18 @@
+bind_dir: /etc/bind
+bind_zone_dir: /var/lib/bind            # AppArmor profil BIND-a dozvoljava pisanje (dinamičke zone, .jnl)
+bind_ttl: 300                           # podrazumijevani TTL zapisa (DO-8)
+bind_negative_ttl: 60                   # koliko se pamti NXDOMAIN (zadnje polje SOA)
+
+# Reverzna zona za /16 projekta: 10.20.0.0/16 -> 20.10.in-addr.arpa
+bind_reverse_zone: "{{ (ruo_project_cidr.split('/')[0].split('.')[:2] | reverse | join('.')) ~ '.in-addr.arpa' }}"
+
+# Zone i ko ih smije mijenjati (najmanja prava: ključ samo za svoju zonu i samo navedene tipove)
+bind_zones:
+  - name: "{{ ruo_zone }}"
+    key: tf-ruo
+    types: [A, AAAA, CNAME, TXT, SRV]   # NS i SOA namjerno nisu dozvoljeni: ključ ne može preoteti delegaciju
+    template: db.forward.j2
+  - name: "{{ bind_reverse_zone }}"
+    key: tf-ptr
+    types: [PTR]
+    template: db.reverse.j2

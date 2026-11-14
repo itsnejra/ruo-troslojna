@@ -1,0 +1,10 @@
+# make destroy: uklanja ono što Ansible pravi na hostu (VM-ove uklanja Terraform).
+- name: Ukloni ruter i namespace klijenta s hosta
+  hosts: hypervisor
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Rola router, stanje "nema"
+      ansible.builtin.include_role:
+        name: router
+        tasks_from: absent

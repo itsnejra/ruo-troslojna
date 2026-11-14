@@ -1,0 +1,3 @@
+# Segment infra (ns1). Host (admin) osim SSH-a smije i DNS: Terraform šalje RFC 2136 UPDATE (AO-8).
+fw_admin_dodatno:
+  - { tcp: ["{{ ruo_ports.dns }}"], udp: ["{{ ruo_ports.dns }}"], opis: "Terraform DNS UPDATE i dig s hosta" }

@@ -1,0 +1,18 @@
+// {{ ansible_managed }}
+options {
+  directory "/var/cache/bind";
+
+  // "localhost" je ugrađena ACL: sve adrese ovog servera (ns1 u segmentu infra i loopback),
+  // pa u konfiguraciji nema IP literala (AO-7)
+  listen-on port {{ ruo_ports.dns }} { localhost; };
+  listen-on-v6 { none; };
+
+  recursion no;                         // samo autoritativni odgovori: tuđe domene dobijaju REFUSED
+  allow-query { {{ ruo_project_cidr }}; localhost; };
+  allow-transfer { none; };             // zone se mogu prenijeti samo uz ključ (named.conf.local)
+  notify no;                            // nema sekundarnog servera (DO-8)
+
+  dnssec-validation no;
+  minimal-responses yes;
+  version none;                         // ne otkriva verziju servera
+};

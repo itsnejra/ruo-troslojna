@@ -1,0 +1,15 @@
+// {{ ansible_managed }}
+// Zone projekta (DO-8). Obje su dinamičke: zapise mijenja Terraform (RFC 2136) ključem koji smije
+// SAMO svoju zonu i SAMO navedene tipove zapisa (AO-8, načelo najmanjih prava).
+include "{{ bind_dir }}/ruo-keys.conf";
+
+{% for z in bind_zones %}
+zone "{{ z.name }}" {
+  type primary;
+  file "{{ bind_zone_dir }}/db.{{ z.name }}";
+  serial-update-method unixtime;        // serial raste sam, monotono, pri svakom UPDATE-u
+  update-policy { grant {{ z.key }} zonesub {{ z.types | join(' ') }}; };
+  allow-transfer { key {{ z.key }}; };  // pregled cijele zone (dig AXFR) samo uz ključ
+};
+
+{% endfor %}

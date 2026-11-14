@@ -1,0 +1,26 @@
+# make config: osnovna konfiguracija infrastrukture (AO-5). Idempotentno: drugo izvršavanje changed=0.
+# Isporuka aplikacije je zasebno (deploy.yml), jer zavisi i od DNS zapisa (make dns).
+
+- name: Ruter i namespace klijenta (host)
+  hosts: hypervisor
+  become: true            # traži sudo lozinku hosta: make config pokreće ansible-playbook -K
+  gather_facts: false
+  roles: [router]
+
+- name: Osnova i vatrozid svih VM-ova
+  hosts: vms
+  become: true
+  gather_facts: false     # činjenice skuplja rola common, tek kad VM odgovara i cloud-init završi
+  roles: [common, firewall]
+
+- name: Docker na VM-ovima aplikacije
+  hosts: web:app:db
+  become: true
+  gather_facts: false
+  roles: [docker]
+
+- name: Autoritativni DNS
+  hosts: infra
+  become: true
+  gather_facts: false
+  roles: [bind]

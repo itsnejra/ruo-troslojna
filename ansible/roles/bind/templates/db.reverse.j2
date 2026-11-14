@@ -1,0 +1,6 @@
+; {{ ansible_managed }}
+; POČETNO stanje reverzne zone {{ bind_reverse_zone }}: PTR zapise pravi Terraform (ključ tf-ptr).
+$TTL {{ bind_ttl }}
+@        IN SOA  {{ ruo_dns_host }}.{{ ruo_zone }}. hostmaster.{{ ruo_zone }}. (
+                 1 3600 600 1209600 {{ bind_negative_ttl }} )
+@        IN NS   {{ ruo_dns_host }}.{{ ruo_zone }}.

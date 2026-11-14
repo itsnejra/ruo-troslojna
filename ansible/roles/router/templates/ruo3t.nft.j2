@@ -1,0 +1,44 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# Ruter projekta na hostu (AO-6). Generisano iz mreza_politika; učitava se atomski.
+#
+# Host je zajednički (libvirt, Docker, drugi labovi), pa ova tabela NE smije razbiti tuđi promet:
+# osnovni lanac propušta sve (policy accept), a u lanac s politikom skače SAMO promet koji ulazi
+# na projektno sučelje ili izlazi kroz njega. Za taj promet važi default deny.
+# Paket mora proći SVE osnovne lance na istom hooku (sedmica 4), pa accept u tuđoj tabeli
+# (npr. pravila koja libvirt pravi za route mrežu) ne otvara ono što ova tabela odbije.
+{% set ifs = ruo_segments.values() | map(attribute='bridge') | list + [ruo_client.veth] %}
+{% macro cidr(ime) %}{{ ruo_client.cidr if ime == 'klijent' else ruo_segments[ime].cidr }}{% endmacro %}
+
+table inet {{ router_table }}
+delete table inet {{ router_table }}
+
+table inet {{ router_table }} {
+  set projekat_if {
+    type ifname
+    elements = { {{ ifs | map('to_json') | join(', ') }} }
+  }
+
+  chain forward {
+    type filter hook forward priority filter; policy accept;
+    iifname @projekat_if jump politika
+    oifname @projekat_if jump politika
+  }
+
+  chain politika {
+    ct state established,related accept      # odgovori na dozvoljene veze
+    ct state invalid drop
+
+{% for p in mreza_politika %}
+{% set izvori = [] %}
+{% for o in p.od %}{% set _ = izvori.append(cidr(o)) %}{% endfor %}
+{% for proto in ['tcp', 'udp'] if p[proto] is defined %}
+    ip saddr { {{ izvori | join(', ') }} } ip daddr {{ cidr(p.do) }} {{ proto }} dport { {{ p[proto] | join(', ') }} } counter accept comment "{{ p.opis }}"
+{% endfor %}
+{% endfor %}
+
+    # sve ostalo pada: i preskakanje sloja (web -> db), i izlaz segmenata prema internetu
+    limit rate 5/minute log prefix "ruo3t-drop: "
+    counter drop
+  }
+}

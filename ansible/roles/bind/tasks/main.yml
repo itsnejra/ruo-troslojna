@@ -1,0 +1,56 @@
+# Autoritativni DNS projekta (AO-7). Ansible postavlja server, ključeve i POČETNO stanje zona;
+# zapise servisa u zonama mijenja isključivo Terraform (AO-8, terraform/dns).
+
+- name: TSIG ključevi (čitaju ih samo root i bind; vrijednosti iz vaulta)
+  ansible.builtin.template:
+    src: ruo-keys.conf.j2
+    dest: "{{ bind_dir }}/ruo-keys.conf"
+    owner: root
+    group: bind
+    mode: "0640"
+  no_log: true
+  notify: Restartuj bind
+
+- name: Opcije servera (samo autoritativni, bez rekurzije)
+  ansible.builtin.template:
+    src: named.conf.options.j2
+    dest: "{{ bind_dir }}/named.conf.options"
+    owner: root
+    group: bind
+    mode: "0644"
+  notify: Restartuj bind
+
+- name: Zone projekta i pravila izmjene
+  ansible.builtin.template:
+    src: named.conf.local.j2
+    dest: "{{ bind_dir }}/named.conf.local"
+    owner: root
+    group: bind
+    mode: "0644"
+  notify: Restartuj bind
+
+# force: false: datoteka se piše SAMO ako ne postoji. Nakon prve dinamičke izmjene BIND vodi
+# dnevnik (.jnl) i sam ažurira zonu, pa bi prepisivanje iz Ansible-a obrisalo zapise Terraforma.
+- name: Početni sadržaj zona (SOA, NS, glue); dalje ih mijenja Terraform
+  ansible.builtin.template:
+    src: "{{ item.template }}"
+    dest: "{{ bind_zone_dir }}/db.{{ item.name }}"
+    owner: bind
+    group: bind
+    mode: "0644"
+    force: false
+    validate: named-checkzone {{ item.name }} %s
+  loop: "{{ bind_zones }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Restartuj bind
+
+- name: Provjera cijele konfiguracije i učitavanje svih zona
+  ansible.builtin.command: named-checkconf -z {{ bind_dir }}/named.conf
+  changed_when: false
+
+- name: BIND radi i pokreće se s VM-om
+  ansible.builtin.service:
+    name: named
+    state: started
+    enabled: true

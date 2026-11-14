@@ -1,0 +1,3 @@
+- name: Učitaj pravila rutera
+  ansible.builtin.command: nft -f {{ router_nft }}
+  changed_when: true

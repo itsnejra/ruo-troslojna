@@ -1,0 +1,29 @@
+# Varijable cijelog okruženja (DO-7). Adrese ovdje NE postoje: dolaze iz generated.yml
+# (izlaz Terraforma), a ovdje se o mreži govori samo imenima segmenata.
+
+# Portovi servisa: jedno mjesto za pravila vatrozida i za konfiguraciju aplikacije
+ruo_ports:
+  frontend: 80
+  backend: 8000
+  db: 5432
+  dns: 53
+  ssh: 22
+
+# Mrežna politika kao PODACI (proširenje s4/p4). Default deny: nabraja se samo ono što je dozvoljeno,
+# i to u smjeru USPOSTAVE veze (odgovore propušta "ct state established,related").
+# Iz istog popisa nastaju pravila rutera na hostu (rola router) i ulazna pravila VM-ova (rola firewall),
+# pa se dva nivoa zaštite ne mogu razići.
+# "klijent" je namespace koji glumi internet.
+mreza_politika:
+  - { od: [klijent], do: web, tcp: ["{{ ruo_ports.frontend }}"], opis: "internet -> frontend (jedini ulaz izvana)" }
+  - { od: [web], do: app, tcp: ["{{ ruo_ports.backend }}"], opis: "frontend -> backend" }
+  - { od: [app], do: db, tcp: ["{{ ruo_ports.db }}"], opis: "backend -> baza" }
+  - { od: [klijent, web, app, db], do: infra, tcp: ["{{ ruo_ports.dns }}"], udp: ["{{ ruo_ports.dns }}"], opis: "razrješavanje imena (AO-7)" }
+
+# Upravljanje: SSH na VM-ove samo s hosta (adresa hosta u segmentu = gateway segmenta, rola firewall).
+# Host je admin plane; ti paketi ne prolaze kroz forward lanac rutera.
+
+# TSIG ključevi: vrijednosti su u šifrovanom vault.yml (AO-9)
+ruo_tsig:
+  tf-ruo: "{{ vault_tsig_tf_ruo }}"
+  tf-ptr: "{{ vault_tsig_tf_ptr }}"

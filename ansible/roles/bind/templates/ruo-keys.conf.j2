@@ -1,0 +1,8 @@
+// {{ ansible_managed }}
+// TSIG ključevi (HMAC-SHA256). Tajne su u šifrovanom vault.yml (AO-9); ova datoteka je 0640 root:bind.
+{% for ime, tajna in ruo_tsig.items() %}
+key "{{ ime }}" {
+  algorithm hmac-sha256;
+  secret "{{ tajna }}";
+};
+{% endfor %}

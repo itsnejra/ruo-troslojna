@@ -1,0 +1,12 @@
+; {{ ansible_managed }}
+; POČETNO stanje zone {{ ruo_zone }}: Ansible piše ovu datoteku samo ako ne postoji.
+; Vlasništvo zapisa: SOA, NS i glue za ns1 su Ansible-ovi; sve ostale zapise pravi Terraform (terraform/dns).
+$TTL {{ bind_ttl }}
+@        IN SOA  {{ ruo_dns_host }}.{{ ruo_zone }}. hostmaster.{{ ruo_zone }}. (
+                 1                     ; serial (dalje: unixtime pri svakom UPDATE-u)
+                 3600                  ; refresh
+                 600                   ; retry
+                 1209600               ; expire
+                 {{ bind_negative_ttl }} )  ; negativni TTL
+@        IN NS   {{ ruo_dns_host }}.{{ ruo_zone }}.
+{{ ruo_dns_host }}      IN A    {{ ruo_dns_server }}   ; glue: adresa servera same zone

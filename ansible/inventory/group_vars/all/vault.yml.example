@@ -1,0 +1,6 @@
+# Obrazac (AO-9). Prava datoteka vault.yml se NE piše ručno: pravi je `make secrets`
+# (scripts/secrets.sh) s nasumičnim vrijednostima i odmah je šifruje ansible-vaultom.
+# vault.yml nije u Gitu. Ostale varijable upućuju na ove vrijednosti preko prefiksa vault_.
+vault_db_password: "<openssl rand -hex 24>"
+vault_tsig_tf_ruo: "<openssl rand -base64 32>"   # TSIG ključ tf-ruo: Terraform, zona ruo.internal
+vault_tsig_tf_ptr: "<openssl rand -base64 32>"   # TSIG ključ tf-ptr: Terraform, reverzna zona (samo PTR)

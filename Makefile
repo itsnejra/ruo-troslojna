@@ -17,11 +17,15 @@ IMAGE     := $(CURDIR)/$(IMAGE_DIR)/ruo-base.qcow2
 
 SSH_KEY := $(HOME)/.ssh/ruo_ed25519
 TF_VM   := terraform -chdir=terraform/vm
+# -K: sudo lozinka hosta (rola router mijenja host). Ako sudo ne traži lozinku: make ANSIBLE_ARGS= config
+ANSIBLE_ARGS ?= -K
+PLAYBOOK := cd ansible && ansible-playbook
 
 banner = printf '\n\033[1;36m== %s\033[0m\n' '$(1)'
 need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (Preduslovi)."; exit 1; }
 
-.PHONY: help check image ssh-key infra infra-plan infra-destroy test-vm test-ip dev-secret dev-up dev-test dev-persist dev-down dev-clean
+.PHONY: help check image ssh-key infra infra-plan infra-destroy test-vm test-ip test-isolation \
+  secrets config config-vms dev-secret dev-up dev-test dev-persist dev-down dev-clean
 
 ##@ Pomoć
 help: ## ovaj popis
@@ -63,10 +67,26 @@ infra-plan: ## Terraform plan za VM-ove (nakon apply očekivano: No changes)
 test-vm: ## AO-3/AO-4: plan bez promjena, cloud-init, SSH ključem da, lozinkom ne
 > bash tests/vm.sh
 
+test-isolation: ## AO-6: matrica povezivosti (traži sudo: promet iz namespace-a klijenta)
+> bash tests/isolation.sh
+
 test-ip: ## AO-7: nema IP literala u kodu izvan adresnog plana
 > bash tests/no-ip-literals.sh
 
-infra-destroy: ## uklanja VM-ove, diskove i mreže
+secrets: ## tajne: .vault_pass i šifrovani vault.yml (samo ono što nedostaje; AO-9)
+> @$(call need,ansible-vault)
+> bash scripts/secrets.sh
+
+config: secrets ## Ansible: ruter na hostu, vatrozid, Docker, DNS server (AO-5, AO-6, AO-7)
+> @$(call need,ansible-playbook)
+> @test -f ansible/inventory/hosts.yml || { echo "Nema inventoryja: prvo make infra"; exit 1; }
+> $(PLAYBOOK) config.yml $(ANSIBLE_ARGS)
+
+config-vms: secrets ## isto kao config, ali samo VM-ovi (bez sudo na hostu)
+> $(PLAYBOOK) config.yml --limit vms
+
+infra-destroy: ## uklanja ruter s hosta, VM-ove, diskove i mreže
+> -test -f ansible/inventory/hosts.yml && $(PLAYBOOK) teardown.yml $(ANSIBLE_ARGS)
 > -$(TF_VM) destroy -auto-approve -input=false
 > rm -f ansible/inventory/hosts.yml ansible/inventory/group_vars/all/generated.yml ansible/known_hosts
 

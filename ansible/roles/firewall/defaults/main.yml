@@ -1,0 +1,3 @@
+# Dodatni ulaz s hosta (admin), osim SSH-a; segment ga može proširiti u group_vars (npr. infra: DNS)
+fw_admin_dodatno: []
+fw_conf: /etc/nftables.conf

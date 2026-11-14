@@ -1,0 +1,29 @@
+# Vatrozid VM-a iz podataka (s4/p4 obrazac): šablon + provjera sintakse prije zamjene + handler.
+- name: Pravila vatrozida iz politike (nft -c provjerava PRIJE zamjene datoteke)
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: "{{ fw_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: nft -c -f %s
+  notify: Učitaj vatrozid
+
+- name: Pravila se učitavaju pri svakom pokretanju VM-a
+  ansible.builtin.service:
+    name: nftables
+    enabled: true
+
+# Rola opisuje STANJE, ne samo datoteku: ako pravila nisu u jezgri (npr. neko je uradio
+# "nft flush ruleset"), datoteka je ista pa handler ne bi radio. Ova provjera to hvata,
+# a "changed" javlja samo kad stvarno mora učitati pravila (s5/p4 obrazac).
+- name: Provjeri da su pravila učitana u jezgru
+  ansible.builtin.command: nft list table inet ruo
+  register: fw_tabela
+  changed_when: false
+  failed_when: false
+
+- name: Učitaj pravila ako ih nema u jezgri
+  ansible.builtin.command: nft -f {{ fw_conf }}
+  when: fw_tabela.rc != 0
+  changed_when: true

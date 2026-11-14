@@ -1,0 +1,21 @@
+# Uklanjanje svega što je rola router napravila na hostu (make destroy).
+- name: Ukloni pravila rutera iz jezgre
+  ansible.builtin.command: nft delete table inet {{ router_table }}
+  register: router_del
+  changed_when: router_del.rc == 0
+  failed_when: false
+
+- name: Ukloni namespace klijenta
+  ansible.builtin.command: "{{ router_ns_script }} down {{ ruo_client.netns }} {{ ruo_client.veth }}"
+  register: router_ns_down
+  changed_when: "'PROMJENA' in router_ns_down.stdout"
+  failed_when: false
+
+- name: Ukloni datoteke rutera
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ router_nft }}"
+    - "{{ router_ns_script }}"
+    - /etc/sysctl.d/60-ruo.conf

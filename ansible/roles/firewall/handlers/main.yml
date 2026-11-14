@@ -1,0 +1,3 @@
+- name: Učitaj vatrozid
+  ansible.builtin.command: nft -f {{ fw_conf }}
+  changed_when: true
