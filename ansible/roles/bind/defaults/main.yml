@@ -3,7 +3,7 @@ bind_zone_dir: /var/lib/bind            # AppArmor profil BIND-a dozvoljava pisa
 bind_ttl: 300                           # podrazumijevani TTL zapisa (DO-8)
 bind_negative_ttl: 60                   # koliko se pamti NXDOMAIN (zadnje polje SOA)
 
-# Reverzna zona za /16 projekta: 10.20.0.0/16 -> 20.10.in-addr.arpa
+# Reverzna zona za /16 projekta: prva dva okteta obrnutim redom + in-addr.arpa (A.B.0.0/16 -> B.A.in-addr.arpa)
 bind_reverse_zone: "{{ (ruo_project_cidr.split('/')[0].split('.')[:2] | reverse | join('.')) ~ '.in-addr.arpa' }}"
 
 # Zone i ko ih smije mijenjati (najmanja prava: ključ samo za svoju zonu i samo navedene tipove)
