@@ -1,0 +1,15 @@
+# Mrežna konfiguracija VM-a (netplan v2, DO-3). Adrese su statičke i dolaze iz adresnog plana
+# u Terraformu (cidrhost); na projektnim mrežama nema DHCP-a.
+version: 2
+ethernets:
+  primary:
+    match:
+      name: "en*"
+    addresses: [${ip}/${prefix}]
+    routes:
+      - to: default
+        via: ${gateway}
+    nameservers:
+      # Bootstrap DNS-a: resolver je jedino mjesto gdje VM zna IP DNS servera (AO-7).
+      addresses: [${dns_ip}]
+      search: [${zone}]

@@ -24,6 +24,7 @@ id_*
 ansible/inventory/hosts.yml
 ansible/inventory/group_vars/all/generated.yml
 ansible/known_hosts
+terraform/vm/image.auto.tfvars
 ansible/collections/
 
 # --- artefakti izgradnje (DO-4, DO-5) ---

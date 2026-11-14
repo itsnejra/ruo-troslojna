@@ -1,0 +1,39 @@
+#cloud-config
+# Početna konfiguracija VM-a (AO-4). Šablon popunjava Terraform (terraform/vm/vms.tf).
+# Sadrži samo ono što je specifično za instancu; paketi su već u slici (DO-4),
+# a sve ostalo radi Ansible (AO-5). cloud-init je ovdje samo bootstrap za Ansible.
+hostname: ${hostname}
+fqdn: ${hostname}.${zone}
+prefer_fqdn_over_hostname: false
+manage_etc_hosts: true
+
+# AO-4: prijava isključivo ključem
+ssh_pwauth: false
+disable_root: true
+users:
+  - name: ${admin_user}
+    gecos: Ansible / administrator
+    groups: [sudo]
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${admin_pubkey}
+
+# Ključ servera dolazi iz Terraforma (DO-6): kontrolni čvor ga zna unaprijed, pa Ansible
+# radi sa StrictHostKeyChecking=yes bez ijednog "yes/no" pitanja i bez isključivanja provjere.
+ssh_deletekeys: true
+ssh_genkeytypes: []
+ssh_keys:
+  ed25519_private: |
+    ${indent(4, host_key_private)}
+  ed25519_public: ${host_key_public}
+
+# Druga linija odbrane za AO-4: i kad bi neko kasnije uključio lozinke, sshd ih ne nudi.
+write_files:
+  - path: /etc/ssh/sshd_config.d/10-ruo.conf
+    permissions: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no

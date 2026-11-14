@@ -4,7 +4,37 @@ Projektni zadatak iz predmeta **Računarstvo u oblaku** (Politehnički fakultet,
 
 Infrastruktura za web aplikaciju s frontendom, backendom i bazom podataka, opisana isključivo kodom: virtuelne mašine (Terraform + libvirt), početna konfiguracija (cloud-init), konfiguracija servera (Ansible), kontejneri (Docker), segmentirana mreža (libvirt `route` mreže + nftables) i DNS (BIND, zapisi kao Terraform resursi).
 
-> **Status:** u izradi. Faza 1 (aplikacija i lokalni razvoj) je gotova. Infrastruktura (Packer, Terraform, Ansible, DNS) dolazi u sljedećim fazama, a ovaj README se dopunjava uz svaku od njih.
+> **Status:** u izradi. Gotove su faza 1 (aplikacija i lokalni razvoj) i faza 2 (zlatna slika i VM-ovi). Slijede Ansible (konfiguracija, vatrozid, DNS server), DNS zapisi i isporuka aplikacije, a ovaj README se dopunjava uz svaku fazu.
+
+## Infrastruktura (faza 2)
+
+| Korak | Alat | Rezultat |
+|---|---|---|
+| `make image` | Packer | zlatna slika `build/image-<hash>/ruo-base.qcow2`: Ubuntu 24.04 cloud slika + Docker, nftables, BIND. Gradi se samo kad se promijeni mapa `packer/` (DO-4). |
+| `make infra` | Terraform (`terraform/vm`) | 4 libvirt mreže u `route` modu, 4 VM-a, zaseban disk za podatke na db1, a za Ansible generisani inventory i `known_hosts` (AO-3, DO-6). |
+| cloud-init | `cloud-init/*.tftpl` | korisnik `ops` samo s ključem, lozinke onemogućene, ključ servera iz Terraforma, statička adresa i resolver (AO-4). |
+| `make test-vm` | `tests/vm.sh` | `terraform plan` bez promjena; po VM-u hostname, `cloud-init: done`, adresa iz plana, SSH ključem prolazi, a lozinkom je odbijen. |
+
+### Plan adresiranja
+
+Jedini IP literal u kodu je `project_cidr = "10.20.0.0/16"` (`terraform/vm/variables.tf`). Podmreže se računaju sa `cidrsubnet(project_cidr, 8, n)`, a adrese sa `cidrhost(podmreža, hostnum)`. `make test-ip` provjerava da drugih literala nema (AO-7).
+
+| Segment | Podmreža | Gateway (host) | VM | Adresa | Uloga |
+|---|---|---|---|---|---|
+| infra | 10.20.0.0/24 | 10.20.0.1 | ns1 | 10.20.0.53 | autoritativni DNS (BIND) |
+| web | 10.20.1.0/24 | 10.20.1.1 | web1 | 10.20.1.10 | frontend, jedini ulaz izvana |
+| app | 10.20.2.0/24 | 10.20.2.1 | app1 | 10.20.2.10 | backend |
+| db | 10.20.3.0/24 | 10.20.3.1 | db1 | 10.20.3.10 | baza + disk za podatke (`vdb`) |
+| klijent | 10.20.255.0/30 | 10.20.255.1 | (namespace) | 10.20.255.2 | simulirani internet |
+
+Adrese su statičke (cloud-init `network-config`, netplan), a na projektnim mrežama nema DHCP-a ni dnsmasq-a. Resolver svakog VM-a je ns1.
+
+```bash
+make infra        # slika (ako treba) + VM-ovi
+make test-vm      # AO-3 i AO-4
+make infra-plan   # nakon apply: "No changes"
+make infra-destroy
+```
 
 ## Aplikacija: „Bilješke"
 
@@ -44,7 +74,10 @@ make dev-clean     # brisanje kontejnera i volumena
 
 ```
 app/          frontend/, backend/, db/init/, compose.yaml (produkcija), compose.dev.yaml (razvoj)
-tests/        app.sh (s kraja na kraj); slijede izolacija, DNS, perzistencija, idempotentnost
+packer/       zlatna slika VM-ova (ruo-base.pkr.hcl, seed/, scripts/provision.sh)
+terraform/vm/ mreže, diskovi, VM-ovi, ključevi servera, generisani inventory (AO-3)
+cloud-init/   user-data, network-config, meta-data šabloni (AO-4)
+tests/        app.sh, vm.sh, no-ip-literals.sh; slijede izolacija, DNS, perzistencija, idempotentnost
 docs/adr/     zapisi dizajnerskih odluka DO-1 … DO-9
 Makefile      ulaz u sve korake (make help)
 ```

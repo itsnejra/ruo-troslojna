@@ -1,6 +1,6 @@
 # Troslojna aplikacija kao kod: ulaz u sve korake. Pokretanje: `make help`.
 # Stil prati Makefile predmeta: naredbe se ispisuju prije izvršavanja, ">" je prefiks recepta.
-# Ciljevi infrastrukture (image, infra, config, dns, deploy, test, all, destroy) dolaze u sljedećim fazama.
+# Gotovo: image, infra (faza 2). Slijede config, dns, deploy, test, all, destroy.
 
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -9,10 +9,19 @@ SHELL := /bin/bash
 
 DEV := docker compose -f app/compose.dev.yaml
 
+# Zlatna slika (DO-4): oznaka je hash sadržaja mape packer/, pa se slika gradi ponovo samo kad
+# se promijeni njen kod. Ista oznaka = ista slika = make image ne radi ništa (idempotentnost).
+IMAGE_TAG := $(shell find packer -type f | LC_ALL=C sort | xargs cat | sha256sum | cut -c1-12)
+IMAGE_DIR := build/image-$(IMAGE_TAG)
+IMAGE     := $(CURDIR)/$(IMAGE_DIR)/ruo-base.qcow2
+
+SSH_KEY := $(HOME)/.ssh/ruo_ed25519
+TF_VM   := terraform -chdir=terraform/vm
+
 banner = printf '\n\033[1;36m== %s\033[0m\n' '$(1)'
 need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (Preduslovi)."; exit 1; }
 
-.PHONY: help check dev-secret dev-up dev-test dev-persist dev-down dev-clean
+.PHONY: help check image ssh-key infra infra-plan infra-destroy test-vm test-ipdev-secret dev-up dev-test dev-persist dev-down dev-clean
 
 ##@ Pomoć
 help: ## ovaj popis
@@ -25,6 +34,41 @@ check: ## provjera alata i okruženja
 > @docker info >/dev/null 2>&1 && echo "  ok     docker daemon radi" || echo "  !!     docker daemon ne radi"
 > @[ -w /dev/kvm ] && echo "  ok     /dev/kvm" || echo "  !!     /dev/kvm nije dostupan"
 > @case "$$(command -v docker)" in /mnt/*) echo "  !!     docker pokazuje na Windows (Docker Desktop); koristiti Docker Engine u WSL-u";; esac
+
+##@ Infrastruktura
+image: ## Packer: zlatna slika VM-ova (preskače se ako slika za trenutni kod postoji)
+> @$(call need,packer)
+> @if [ -f "$(IMAGE)" ]; then echo "slika $(IMAGE_TAG) postoji: $(IMAGE)"; else \
+>   $(call banner,packer build $(IMAGE_TAG)); \
+>   packer init packer && packer validate -var image_tag=$(IMAGE_TAG) -var output_dir=$(IMAGE_DIR) packer && \
+>   packer build -var image_tag=$(IMAGE_TAG) -var output_dir=$(IMAGE_DIR) packer; fi
+> @# starije slike nisu potrebne: libvirt drži vlastitu kopiju u poolu
+> @find build -maxdepth 1 -name 'image-*' ! -name 'image-$(IMAGE_TAG)' -exec rm -rf {} +
+> @# putanja slike za Terraform: i obični `terraform plan` u terraform/vm radi bez dodatnih argumenata
+> @printf '# GENERISANO: make image\nbase_image = "%s"\n' "$(IMAGE)" > terraform/vm/image.auto.tfvars
+
+ssh-key: ## projektni SSH ključ administratora (~/.ssh/ruo_ed25519, van repozitorija)
+> @test -f $(SSH_KEY) || { mkdir -p ~/.ssh && chmod 700 ~/.ssh && ssh-keygen -q -t ed25519 -N "" -C "ruo-admin" -f $(SSH_KEY) && echo "napravljen $(SSH_KEY)"; }
+
+infra: ssh-key image ## Terraform: mreže, diskovi, VM-ovi, inventory i known_hosts (AO-3)
+> @$(call need,terraform)
+> @virsh -c qemu:///system list >/dev/null 2>&1 || { echo "libvirt ne radi (virsh -c qemu:///system list)"; exit 1; }
+> $(TF_VM) init -input=false
+> bash scripts/tf-retry.sh $(TF_VM) apply -auto-approve -input=false
+> $(TF_VM) output hosts
+
+infra-plan: ## Terraform plan za VM-ove (nakon apply očekivano: No changes)
+> bash scripts/tf-retry.sh $(TF_VM) plan -input=false
+
+test-vm: ## AO-3/AO-4: plan bez promjena, cloud-init, SSH ključem da, lozinkom ne
+> bash tests/vm.sh
+
+test-ip: ## AO-7: nema IP literala u kodu izvan adresnog plana
+> bash tests/no-ip-literals.sh
+
+infra-destroy: ## uklanja VM-ove, diskove i mreže
+> -$(TF_VM) destroy -auto-approve -input=false
+> rm -f ansible/inventory/hosts.yml ansible/inventory/group_vars/all/generated.yml ansible/known_hosts
 
 ##@ Razvoj aplikacije (lokalno, bez VM-ova)
 dev-secret: ## lozinka baze za razvoj u .secrets/ (samo ako ne postoji; nije u Gitu)

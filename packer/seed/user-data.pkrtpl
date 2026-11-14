@@ -1,0 +1,7 @@
+#cloud-config
+# Samo za VM koja gradi sliku: Packer se prijavljuje lozinkom koja postoji dok traje izgradnja.
+ssh_pwauth: true
+chpasswd:
+  expire: false
+  users:
+    - { name: ubuntu, password: "${password}", type: text }
