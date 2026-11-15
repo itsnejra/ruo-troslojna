@@ -1,0 +1,5 @@
+# Segment app: backend (FastAPI). Proces u kontejneru radi kao UID 10001 (USER u Dockerfileu),
+# pa je on vlasnik datoteke s lozinkom baze (0400).
+app_profil: app
+app_slika: backend
+app_tajna_uid: 10001

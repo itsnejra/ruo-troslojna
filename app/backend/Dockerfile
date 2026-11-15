@@ -1,15 +1,19 @@
 # Backend slika (DO-5): dvije faze. Prva instalira zavisnosti, druga sadrži samo runtime.
 # Zavisnosti se kopiraju prije koda, pa izmjena koda koristi keširani sloj sa zavisnostima.
 
+# Bazna slika je zaključana digestom (Python 3.12.16): tag "3.12-slim" se vremenom pomjera,
+# a digest garantuje identičnu sliku pri svakoj izgradnji (DO-5).
+ARG PYTHON_IMAGE=python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+
 # --- faza 1: zavisnosti ---
-FROM python:3.12-slim AS build
+FROM ${PYTHON_IMAGE} AS build
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /w
 COPY requirements.txt .
 RUN pip install --prefix=/install -r requirements.txt
 
 # --- faza 2: runtime ---
-FROM python:3.12-slim
+FROM ${PYTHON_IMAGE}
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UVICORN_HOST=0.0.0.0 \

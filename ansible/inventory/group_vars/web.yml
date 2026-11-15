@@ -1,0 +1,3 @@
+# Segment web: frontend (nginx). Bez tajni: frontend ne zna ništa o bazi.
+app_profil: web
+app_slika: frontend

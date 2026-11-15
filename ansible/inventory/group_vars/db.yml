@@ -1,0 +1,6 @@
+# Segment db: PostgreSQL. U alpine postgres slici korisnik postgres ima UID 70.
+app_profil: db
+app_slika: db
+app_tajna_uid: 70
+# Drugi virtio disk VM-a (terraform/vm: libvirt_volume.data); prvi (vda) je root disk.
+app_data_disk: /dev/vdb

@@ -1,0 +1,21 @@
+# make deploy: isporuka aplikacije (AO-1). Redoslijed slijedi zavisnosti: baza, pa backend, pa
+# frontend; svaki sloj se čeka dok ne postane zdrav (healthcheck) prije sljedećeg.
+# Slike i njihove oznake dolaze iz build/images/manifest.yml (scripts/build-images.sh).
+
+- name: Baza
+  hosts: db
+  become: true
+  vars_files: ["../build/images/manifest.yml"]
+  roles: [app]
+
+- name: Backend
+  hosts: app
+  become: true
+  vars_files: ["../build/images/manifest.yml"]
+  roles: [app]
+
+- name: Frontend
+  hosts: web
+  become: true
+  vars_files: ["../build/images/manifest.yml"]
+  roles: [app]

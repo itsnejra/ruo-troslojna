@@ -4,7 +4,26 @@ Projektni zadatak iz predmeta **Računarstvo u oblaku** (Politehnički fakultet,
 
 Infrastruktura za web aplikaciju s frontendom, backendom i bazom podataka, opisana isključivo kodom: virtuelne mašine (Terraform + libvirt), početna konfiguracija (cloud-init), konfiguracija servera (Ansible), kontejneri (Docker), segmentirana mreža (libvirt `route` mreže + nftables) i DNS (BIND, zapisi kao Terraform resursi).
 
-> **Status:** u izradi. Gotove su faze 1–4: aplikacija, zlatna slika i VM-ovi, Ansible (ruter, vatrozid, Docker, DNS server) i DNS zapisi iz Terraforma. Slijedi isporuka aplikacije na VM-ove.
+> **Status:** u izradi. Gotove su faze 1–5: aplikacija, zlatna slika i VM-ovi, Ansible (ruter, vatrozid, Docker, DNS server), DNS zapisi iz Terraforma i isporuka aplikacije. Slijede `make all` / `make destroy` od nule i dokumentacija (ADR, PDF).
+
+## Isporuka aplikacije (faza 5)
+
+| Korak | Šta radi |
+|---|---|
+| `make images` | gradi `ruo/frontend` i `ruo/backend` **jednom, na kontrolnom čvoru**; bazne slike su zaključane digestom (nginx 1.27.5, Python 3.12.16, PostgreSQL 17.12); sve tri slike se pakuju u arhive (`build/images/`). Oznaka slike je hash sadržaja `app/`, pa ista aplikacija znači istu oznaku i nema ponovne isporuke (DO-5). |
+| `make deploy` | `ansible/deploy.yml`, redom baza → backend → frontend, uz čekanje da svaki sloj postane zdrav |
+
+Rola `app` na svakom VM-u:
+- **db1:** formatira disk `/dev/vdb` (samo ako je prazan), montira ga na `/srv/pgdata` i postavlja `pg_hba.conf`, koji pušta samo app podmrežu s SCRAM lozinkom (treći nivo zaštite);
+- **tajne:** lozinka baze je datoteka 0400 čiji je vlasnik korisnik procesa u kontejneru (UID 70 za postgres, 10001 za backend), a kontejner je čita preko `*_FILE` (AO-9);
+- **slike:** arhivu prenosi samo kad se promijeni, a u Docker je učitava samo ako ta oznaka ne postoji;
+- **pokretanje:** `docker compose --profile <sloj>` nad istim `compose.yaml` na svim VM-ovima. Mreža je `host`, pa **nijedan kontejner nema objavljen port** (AO-6).
+
+```bash
+make deploy        # drugi put: changed=0
+make test-app      # AO-1: iz namespace-a klijenta: www.ruo.internal -> frontend -> backend -> baza (sudo)
+make test-persist  # AO-10: unos -> docker compose up --force-recreate / docker rm -f -> podatak je tu
+```
 
 ## DNS zapisi kao kod (faza 4)
 
@@ -148,7 +167,7 @@ make dev-clean     # brisanje kontejnera i volumena
 
 - Windows 11 + WSL2 (Ubuntu), `systemd=true`, nested virtualizacija (`/dev/kvm` u WSL-u).
 - Repozitorij mora biti u Linux fajl sistemu (`~/`), **ne** u `/mnt/c/...`: Ansible ignoriše `ansible.cfg` u direktoriju u koji svi mogu pisati.
-- Docker Engine **u WSL distribuciji** (ne Windows binarka Docker Desktopa). `make check` upozorava ako `docker` pokazuje na `/mnt/c/...`.
+- Docker Engine **u WSL distribuciji** (ne Windows binarka Docker Desktopa): `sudo apt-get install -y docker.io docker-compose-v2 docker-buildx`. `make check` upozorava ako `docker` pokazuje na `/mnt/c/...`.
 - Alati: `make check`.
 
 ## Struktura repozitorija

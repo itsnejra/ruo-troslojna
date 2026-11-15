@@ -1,0 +1,11 @@
+# Isporuka aplikacije (AO-1). Isti compose.yaml na svakom VM-u; svaki VM pokreće samo svoj profil.
+app_dir: /opt/ruo
+app_etc_dir: /etc/ruo
+app_secrets_dir: /etc/ruo/secrets
+app_data_dir: /srv/pgdata
+
+# Postavlja se po segmentu (group_vars/<segment>.yml)
+app_profil: ""                 # web | app | db
+app_slika: ""                  # ključ u app_slike (manifest.yml): frontend | backend | db
+app_tajna_uid: 0               # vlasnik datoteke s lozinkom = korisnik procesa u kontejneru
+app_data_disk: ""              # uređaj diska za podatke (samo db)

@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# Ko se smije spojiti na bazu (treći nivo zaštite, iza vatrozida rutera i vatrozida db1).
+# TYPE  DATABASE  USER  ADDRESS                               METHOD
+
+# unix socket postoji samo unutar kontejnera (inicijalizacija baze i pg_isready)
+local   all       all                                         trust
+
+# samo backend: segment app, samo baza i korisnik aplikacije, lozinka (SCRAM)
+host    ruo       ruo   {{ ruo_segments.app.cidr }}{{ ' ' * (36 - ruo_segments.app.cidr | length) }}scram-sha-256
+
+# sve ostalo: odbijeno (i bez ovog reda, ali eksplicitno je čitljivije)
+host    all       all   all                                   reject

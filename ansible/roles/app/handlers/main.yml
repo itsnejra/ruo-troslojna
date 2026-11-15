@@ -1,0 +1,8 @@
+# Promjena konfiguracije koja se čita samo pri startu (pg_hba.conf) traži restart kontejnera.
+- name: Restartuj kontejnere
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_dir }}"
+    profiles: ["{{ app_profil }}"]
+    state: restarted
+    wait: true
+    wait_timeout: 180

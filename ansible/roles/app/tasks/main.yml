@@ -1,0 +1,105 @@
+# Isporuka jednog sloja aplikacije na njegov VM (AO-1, AO-10, AO-9).
+
+- name: Disk za podatke baze ima datotečni sistem (formatira se SAMO ako je prazan)
+  community.general.filesystem:
+    dev: "{{ app_data_disk }}"
+    fstype: ext4
+    opts: -L pgdata
+  when: app_data_disk | length > 0
+
+- name: Disk za podatke je montiran (i pri svakom pokretanju VM-a)
+  ansible.posix.mount:
+    path: "{{ app_data_dir }}"
+    src: LABEL=pgdata
+    fstype: ext4
+    opts: defaults,nofail
+    state: mounted
+  when: app_data_disk | length > 0
+
+- name: Direktoriji aplikacije
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ app_dir }}", mode: "0755" }
+    - { path: "{{ app_dir }}/images", mode: "0700" }
+    - { path: "{{ app_secrets_dir }}", mode: "0755" }
+  loop_control:
+    label: "{{ item.path }}"
+
+# Lozinka baze kao DATOTEKA (AO-9): kontejner je čita preko *_FILE, pa se ne vidi u
+# `docker inspect` ni u okruženju procesa. Vlasnik je korisnik procesa u kontejneru, prava 0400.
+- name: Tajna aplikacije (lozinka baze)
+  ansible.builtin.copy:
+    content: "{{ vault_db_password }}"
+    dest: "{{ app_secrets_dir }}/db_password"
+    owner: "{{ app_tajna_uid }}"
+    group: root
+    mode: "0400"
+  no_log: true
+  when: app_profil in ['app', 'db']
+
+- name: pg_hba.conf (ko se smije spojiti na bazu)
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: "{{ app_etc_dir }}/pg_hba.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: app_profil == 'db'
+  notify: Restartuj kontejnere
+
+- name: Šema baze (izvršava se samo nad praznim direktorijem podataka)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../app/db/"
+    dest: "{{ app_dir }}/db/"
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
+  when: app_profil == 'db'
+
+- name: Opis aplikacije (compose.yaml, isti na svim VM-ovima)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../app/compose.yaml"
+    dest: "{{ app_dir }}/compose.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Okruženje za compose (.env), bez tajni i bez adresa
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ app_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0644"
+
+# Slike stižu kao arhive s kontrolnog čvora (DO-5). copy prenosi samo ako se checksum promijenio,
+# a docker_image učitava samo ako slika s tom oznakom ne postoji: drugi put nema promjena.
+- name: Arhiva slike na VM
+  ansible.builtin.copy:
+    src: "{{ app_slike[app_slika].arhiva }}"
+    dest: "{{ app_dir }}/images/{{ app_slike[app_slika].arhiva | basename }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Slika je učitana u Docker
+  community.docker.docker_image:
+    name: "{{ app_slike[app_slika].ime }}"
+    source: load
+    load_path: "{{ app_dir }}/images/{{ app_slike[app_slika].arhiva | basename }}"
+
+- name: Kontejner sloja radi i zdrav je (compose profil {{ app_profil }})
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_dir }}"
+    profiles: ["{{ app_profil }}"]
+    state: present
+    pull: never
+    wait: true
+    wait_timeout: 180
+  register: app_compose

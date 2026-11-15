@@ -26,7 +26,7 @@ banner = printf '\n\033[1;36m== %s\033[0m\n' '$(1)'
 need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (Preduslovi)."; exit 1; }
 
 .PHONY: help check image ssh-key infra infra-plan infra-destroy test-vm test-ip test-isolation test-dns \
-  secrets config config-vms dns dns-plan drift-dns dns-destroy dev-secret dev-up dev-test dev-persist dev-down dev-clean
+  test-app test-persist secrets config config-vms dns dns-plan drift-dns dns-destroy images deploy dev-secret dev-up dev-test dev-persist dev-down dev-clean
 
 ##@ Pomoć
 help: ## ovaj popis
@@ -74,6 +74,12 @@ test-isolation: ## AO-6: matrica povezivosti (traži sudo: promet iz namespace-a
 test-dns: ## AO-7/AO-8: dig upiti, PTR, rekurzija, AXFR, prava TSIG ključeva, plan bez promjena
 > bash tests/dns.sh
 
+test-app: ## AO-1: aplikacija s kraja na kraj iz "interneta" (namespace klijenta, sudo)
+> sudo ip netns exec ruo-klijent bash tests/app.sh http://www.$$(terraform -chdir=terraform/vm output -raw zone)
+
+test-persist: ## AO-10: unos, ponovno kreiranje kontejnera baze, provjera
+> bash tests/persistence.sh
+
 test-ip: ## AO-7: nema IP literala u kodu izvan adresnog plana
 > bash tests/no-ip-literals.sh
 
@@ -100,6 +106,14 @@ dns-plan: ## Terraform plan za DNS zapise (nakon apply očekivano: No changes)
 
 drift-dns: ## demonstracija drifta: zapis mijenjamo mimo koda (nsupdate), plan ga vidi, apply ispravlja
 > bash scripts/drift-dns.sh
+
+images: ## Docker: build frontend/backend, zaključana slika baze, arhive za isporuku (DO-5)
+> @$(call need,docker)
+> bash scripts/build-images.sh
+
+deploy: images ## Ansible: isporuka aplikacije na VM-ove (baza -> backend -> frontend)
+> @test -f ansible/inventory/hosts.yml || { echo "Nema inventoryja: prvo make infra"; exit 1; }
+> $(PLAYBOOK) deploy.yml
 
 dns-destroy: ## uklanja DNS zapise (dok DNS server još radi)
 > -$(TF_DNS) destroy -auto-approve -input=false
