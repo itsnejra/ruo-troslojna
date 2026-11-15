@@ -20,12 +20,13 @@ TF_VM   := terraform -chdir=terraform/vm
 # -K: sudo lozinka hosta (rola router mijenja host). Ako sudo ne traži lozinku: make ANSIBLE_ARGS= config
 ANSIBLE_ARGS ?= -K
 PLAYBOOK := cd ansible && ansible-playbook
+TF_DNS   := bash scripts/tf-dns.sh
 
 banner = printf '\n\033[1;36m== %s\033[0m\n' '$(1)'
 need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (Preduslovi)."; exit 1; }
 
-.PHONY: help check image ssh-key infra infra-plan infra-destroy test-vm test-ip test-isolation \
-  secrets config config-vms dev-secret dev-up dev-test dev-persist dev-down dev-clean
+.PHONY: help check image ssh-key infra infra-plan infra-destroy test-vm test-ip test-isolation test-dns \
+  secrets config config-vms dns dns-plan drift-dns dns-destroy dev-secret dev-up dev-test dev-persist dev-down dev-clean
 
 ##@ Pomoć
 help: ## ovaj popis
@@ -70,6 +71,9 @@ test-vm: ## AO-3/AO-4: plan bez promjena, cloud-init, SSH ključem da, lozinkom 
 test-isolation: ## AO-6: matrica povezivosti (traži sudo: promet iz namespace-a klijenta)
 > bash tests/isolation.sh
 
+test-dns: ## AO-7/AO-8: dig upiti, PTR, rekurzija, AXFR, prava TSIG ključeva, plan bez promjena
+> bash tests/dns.sh
+
 test-ip: ## AO-7: nema IP literala u kodu izvan adresnog plana
 > bash tests/no-ip-literals.sh
 
@@ -84,6 +88,21 @@ config: secrets ## Ansible: ruter na hostu, vatrozid, Docker, DNS server (AO-5, 
 
 config-vms: secrets ## isto kao config, ali samo VM-ovi (bez sudo na hostu)
 > $(PLAYBOOK) config.yml --limit vms
+
+dns: secrets ## Terraform: DNS zapisi servisa, hostova i PTR (RFC 2136 + TSIG, AO-8)
+> @$(call need,terraform)
+> $(TF_DNS) init -input=false
+> $(TF_DNS) apply -auto-approve -input=false
+> $(TF_DNS) output servisi
+
+dns-plan: ## Terraform plan za DNS zapise (nakon apply očekivano: No changes)
+> $(TF_DNS) plan -input=false
+
+drift-dns: ## demonstracija drifta: zapis mijenjamo mimo koda (nsupdate), plan ga vidi, apply ispravlja
+> bash scripts/drift-dns.sh
+
+dns-destroy: ## uklanja DNS zapise (dok DNS server još radi)
+> -$(TF_DNS) destroy -auto-approve -input=false
 
 infra-destroy: ## uklanja ruter s hosta, VM-ove, diskove i mreže
 > -test -f ansible/inventory/hosts.yml && $(PLAYBOOK) teardown.yml $(ANSIBLE_ARGS)

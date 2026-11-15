@@ -4,7 +4,56 @@ Projektni zadatak iz predmeta **Računarstvo u oblaku** (Politehnički fakultet,
 
 Infrastruktura za web aplikaciju s frontendom, backendom i bazom podataka, opisana isključivo kodom: virtuelne mašine (Terraform + libvirt), početna konfiguracija (cloud-init), konfiguracija servera (Ansible), kontejneri (Docker), segmentirana mreža (libvirt `route` mreže + nftables) i DNS (BIND, zapisi kao Terraform resursi).
 
-> **Status:** u izradi. Gotove su faza 1 (aplikacija), faza 2 (zlatna slika i VM-ovi) i faza 3 (Ansible: ruter, vatrozid, Docker, DNS server). Slijede DNS zapisi iz Terraforma i isporuka aplikacije.
+> **Status:** u izradi. Gotove su faze 1–4: aplikacija, zlatna slika i VM-ovi, Ansible (ruter, vatrozid, Docker, DNS server) i DNS zapisi iz Terraforma. Slijedi isporuka aplikacije na VM-ove.
+
+## DNS zapisi kao kod (faza 4)
+
+`terraform/dns` upravlja zapisima preko RFC 2136 (DNS UPDATE) potpisanog TSIG ključem (AO-8). Adrese čita iz outputa `terraform/vm` (`terraform_remote_state`), a TSIG tajne dobija iz vaulta kroz `TF_VAR_*` (`scripts/tf-dns.sh`), tako da nikad nisu u datoteci.
+
+| Zapis | Vrsta | Vlasnik |
+|---|---|---|
+| SOA, NS, `ns1` (glue) | početno stanje zone | Ansible (rola `bind`, samo pri nastanku zone) |
+| `frontend`, `backend`, `db` | A, servisna imena koja koristi aplikacija | Terraform (`var.servisi`; više VM-ova = round-robin) |
+| `web1`, `app1`, `db1` | A, imena hostova | Terraform |
+| `www` | CNAME → `frontend` | Terraform (`var.aliasi`) |
+| `@` | TXT `managed-by=terraform` | Terraform |
+| PTR za sve VM-ove | reverzna zona `20.10.in-addr.arpa` | Terraform, **drugi ključ** (`tf-ptr`) |
+
+**Prava ključeva (najmanja prava):** `tf-ruo` smije samo zonu `ruo.internal` i samo A/AAAA/CNAME/TXT/SRV (ne NS ni SOA). `tf-ptr` smije samo PTR u reverznoj zoni. `make test-dns` pokušava sve ostalo i očekuje `REFUSED`.
+
+**Sat VM-ova.** TSIG potpis sadrži vrijeme, a server odbija poruke s razlikom većom od 5 minuta (`BADTIME`). Pošto VM-ovi nemaju izlaz na internet, ne mogu koristiti javne NTP servere. Zato `chrony` u svakom VM-u (dio slike) uzima vrijeme direktno od hipervizora preko `ptp_kvm` (`refclock PHC`), bez mreže. `make test-vm` provjerava da je razlika najviše 2 s.
+
+```bash
+make dns          # zapisi (drugi put: No changes)
+make test-dns     # dig, PTR, REFUSED/NXDOMAIN, AXFR, prava ključeva, plan bez promjena
+make drift-dns    # nsupdate mimo koda -> terraform plan vidi razliku -> apply ispravlja
+```
+
+### Drift (izlaz `make drift-dns`)
+
+```text
+== 1. DRIFT: nsupdate briše backend i mijenja adresu za db (mimo Terraforma)
+backend.ruo.internal -> ''   (nema ga)
+db.ruo.internal      -> 10.20.3.99   (pogrešna adresa)
+
+== 2. terraform plan: Terraform vidi razliku (exit 2 = ima promjena)
+  # dns_a_record_set.servis["backend"] will be created
+  # dns_a_record_set.servis["db"] will be updated in-place
+      ~ addresses = [
+          - "10.20.3.99",
+          + "10.20.3.10",
+Plan: 1 to add, 1 to change, 0 to destroy.
+
+== 3. terraform apply: stvarnost se vraća na stanje iz koda
+Apply complete! Resources: 1 added, 1 changed, 0 destroyed.
+backend.ruo.internal -> 10.20.2.10
+db.ruo.internal      -> 10.20.3.10
+
+== 4. terraform plan ponovo: bez promjena
+No changes. Your infrastructure matches the configuration.
+```
+
+Ograničenje koje treba znati: Terraform vidi samo zapise koje je sam napravio. Zapis koji neko doda ručno, a nije u kodu, plan ne prijavljuje. Zato je zona dodijeljena jednom vlasniku-alatu, a cijela zona se može pregledati sa `dig AXFR` uz ključ.
 
 ## Infrastruktura (faza 2)
 
@@ -108,6 +157,9 @@ make dev-clean     # brisanje kontejnera i volumena
 app/          frontend/, backend/, db/init/, compose.yaml (produkcija), compose.dev.yaml (razvoj)
 packer/       zlatna slika VM-ova (ruo-base.pkr.hcl, seed/, scripts/provision.sh)
 terraform/vm/ mreže, diskovi, VM-ovi, ključevi servera, generisani inventory (AO-3)
+terraform/dns/ DNS zapisi: servisi, hostovi, CNAME, PTR (AO-8)
+ansible/      config.yml, teardown.yml, role: router, common, firewall, docker, bind
+scripts/      tajne (secrets.sh, vault-get.sh), tf-dns.sh, drift-dns.sh, tf-retry.sh
 cloud-init/   user-data, network-config, meta-data šabloni (AO-4)
 tests/        app.sh, vm.sh, no-ip-literals.sh; slijede izolacija, DNS, perzistencija, idempotentnost
 docs/adr/     zapisi dizajnerskih odluka DO-1 … DO-9

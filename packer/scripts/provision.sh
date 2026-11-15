@@ -15,8 +15,26 @@ apt-get install -y --no-install-recommends \
   docker.io docker-compose-v2 python3-docker \
   nftables \
   bind9 bind9-utils bind9-dnsutils \
-  qemu-guest-agent \
+  qemu-guest-agent chrony \
   curl netcat-openbsd ca-certificates
+
+echo "== sat VM-a se sinhronizuje sa satom hipervizora (ptp_kvm), bez mreže"
+# VM-ovi nemaju izlaz na internet (DO-2), pa ne mogu koristiti javne NTP servere. Bez sinhronizacije
+# sat gosta zaostaje (npr. kad WSL pauzira VM-ove), a TSIG (AO-8) odbija poruke s razlikom > 5 min
+# (BADTIME). ptp_kvm daje gostu sat hosta direktno kroz hipervizor; modul je u linux-modules-extra,
+# koji cloud slika nema, pa se instalira za svaki kernel u slici.
+for k in /lib/modules/*; do apt-get install -y --no-install-recommends "linux-modules-extra-$(basename "$k")"; done
+echo ptp_kvm > /etc/modules-load.d/ptp_kvm.conf
+cat > /etc/chrony/chrony.conf <<'EOF'
+# Jedini izvor vremena: sat hipervizora (/dev/ptp_kvm). Nema mrežnih NTP izvora (segmenti nemaju izlaz).
+refclock PHC /dev/ptp_kvm poll 2 dpoll -2
+# Korak umjesto postepenog podešavanja kad je razlika > 1 s, uvijek (ne samo pri startu):
+# nakon pauze VM-a sat mora odmah biti tačan, inače TSIG pada.
+makestep 1 -1
+driftfile /var/lib/chrony/chrony.drift
+rtcsync
+EOF
+systemctl enable chrony
 
 echo "== servisi se ne pokreću sami: ulogu VM-a određuje Ansible"
 # Na web/app/db Ansible uključuje Docker (nakon što postavi daemon.json), na ns1 uključuje BIND.

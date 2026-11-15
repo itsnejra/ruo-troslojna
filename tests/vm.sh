@@ -28,6 +28,10 @@ while read -r ime ip; do
   tvrdi "hostname je $ime" test "$(sed -n 1p <<< "$out")" = "$ime"
   tvrdi "cloud-init: done" test "$(sed -n 2p <<< "$out")" = "done"
   tvrdi "adresa je iz adresnog plana" grep -q "^$ip/" <<< "$(sed -n 3p <<< "$out")"
+  # sat VM-a = sat hosta (chrony + ptp_kvm); TSIG (AO-8) dozvoljava najviše 5 min razlike
+  t_vm="$(ssh "${SSH_OPT[@]}" -i "$KEY" "$USR@$ip" 'date +%s; chronyc -n sources 2>/dev/null | grep -c "^#\* PHC"')"
+  razlika=$(( $(date +%s) - $(sed -n 1p <<< "$t_vm") )); razlika=${razlika#-}
+  tvrdi "sat sinhronizovan s hostom (razlika ${razlika}s, izvor PHC/ptp_kvm)" test "$razlika" -le 2 -a "$(sed -n 2p <<< "$t_vm")" = 1
   pw="$(ssh -n -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=ansible/known_hosts \
         -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive "$USR@$ip" true 2>&1)"
   tvrdi "prijava lozinkom odbijena (sshd nudi samo publickey)" grep -q 'Permission denied (publickey)' <<< "$pw"
