@@ -1,0 +1,8 @@
+# Host (WSL), kontrolni čvor i ruter.
+#
+# Ubuntu 25.10+ kao podrazumijevani sudo koristi sudo-rs. On ne radi s načinom na koji Ansible
+# prepoznaje traženje lozinke (become čeka do isteka: "Timed out waiting for become success or
+# become password prompt"). Ako je instaliran klasični sudo (sudo.ws), Ansible koristi njega;
+# inače običan sudo. Sistemska postavka (update-alternatives) se ne mijenja.
+# lookup se izvršava na kontrolnom čvoru, a to je upravo ovaj host.
+ansible_become_exe: "{{ lookup('ansible.builtin.pipe', 'command -v sudo.ws || command -v sudo') }}"
