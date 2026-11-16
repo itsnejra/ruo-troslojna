@@ -4,7 +4,26 @@ Projektni zadatak iz predmeta **Računarstvo u oblaku** (Politehnički fakultet,
 
 Infrastruktura za web aplikaciju s frontendom, backendom i bazom podataka, opisana isključivo kodom: virtuelne mašine (Terraform + libvirt), početna konfiguracija (cloud-init), konfiguracija servera (Ansible), kontejneri (Docker), segmentirana mreža (libvirt `route` mreže + nftables) i DNS (BIND, zapisi kao Terraform resursi).
 
-> **Status:** u izradi. Gotove su faze 1–5: aplikacija, zlatna slika i VM-ovi, Ansible (ruter, vatrozid, Docker, DNS server), DNS zapisi iz Terraforma i isporuka aplikacije. Slijede `make all` / `make destroy` od nule i dokumentacija (ADR, PDF).
+> **Status:** infrastruktura je gotova (faze 1–6). Slijedi dokumentacija (ADR-ovi, PDF) i snimanje izlaza punog ciklusa u ovaj README.
+
+## Brzi početak: tok odbrane
+
+```bash
+make check      # alati i okruženje
+make destroy    # prazan sistem
+make all        # check -> secrets -> image -> infra -> config -> dns -> deploy
+make test       # svi testovi sa sažetkom (sudo lozinka hosta)
+make all        # drugi put: No changes / changed=0 (idempotentnost)
+```
+
+| Cilj | Šta radi |
+|---|---|
+| `make all` | od praznog sistema do aplikacije koja radi; traži sudo lozinku hosta jednom (`make config`, rola `router`) |
+| `make test` | AO-3/AO-4 (VM-ovi), AO-6 (izolacija), AO-7/AO-8 (DNS), AO-7 (IP literali), AO-1 (aplikacija iz interneta), AO-10 (perzistencija), AO-9 (tajne u historiji) |
+| `make destroy` | redom: DNS zapisi (dok ns1 radi), ruter i namespace na hostu, VM-ovi/diskovi/mreže, generisane datoteke, stanje i tajne; na kraju provjerava da ništa od projekta nije ostalo |
+| `make distclean` | `destroy` + zlatna slika, arhive slika, Terraform provideri |
+
+`make destroy` namjerno **ne briše** zlatnu sliku ni arhive kontejnerskih slika. To su artefakti izgradnje (kao keš), ne infrastruktura, pa ponovno podizanje ne čeka ~8 minuta na Packer. Oznaka slike je hash njenog koda, pa se slika ponovo gradi čim se kod promijeni. Potpuno čišćenje radi `make distclean`.
 
 ## Isporuka aplikacije (faza 5)
 
@@ -180,7 +199,7 @@ terraform/dns/ DNS zapisi: servisi, hostovi, CNAME, PTR (AO-8)
 ansible/      config.yml, teardown.yml, role: router, common, firewall, docker, bind
 scripts/      tajne (secrets.sh, vault-get.sh), tf-dns.sh, drift-dns.sh, tf-retry.sh
 cloud-init/   user-data, network-config, meta-data šabloni (AO-4)
-tests/        app.sh, vm.sh, no-ip-literals.sh; slijede izolacija, DNS, perzistencija, idempotentnost
+tests/        run-all.sh (make test), vm.sh, isolation.sh, dns.sh, no-ip-literals.sh, app.sh, persistence.sh, secrets.sh
 docs/adr/     zapisi dizajnerskih odluka DO-1 … DO-9
 Makefile      ulaz u sve korake (make help)
 ```
