@@ -30,7 +30,10 @@ for ime in vault_db_password vault_tsig_tf_ruo vault_tsig_tf_ptr; do
   if git grep -qF -- "$v" $(git rev-list --all) 2>/dev/null; then nadjeno=da; else nadjeno=ne; fi
   tvrdi "vrijednost $ime se ne pojavljuje ni u jednom commitu" test "$nadjeno" = ne
 done
-privatni="$(git log --all -p | grep -c 'PRIVATE KEY-----' || true)"
+# Traži se pravo zaglavlje privatnog ključa (OpenSSH, RSA, EC, PKCS#8). Ni izraz ni ovaj komentar
+# ne smiju sadržavati cijelo zaglavlje, jer su i sami u historiji (test bi pronašao sebe).
+KLJUC_RE='-----BEGIN ([A-Z0-9]+ )?PRIVATE KEY-----'
+privatni="$(git log --all -p | grep -cE -- "$KLJUC_RE" || true)"
 tvrdi "nijedan privatni ključ (PEM/OpenSSH) u historiji" test "$privatni" = 0
 
 echo; [ "$GRESKE" = 0 ] && echo "Tajne: nijedna tajna nije u Gitu." || { echo "Tajne: neuspjelih provjera: $GRESKE"; exit 1; }
