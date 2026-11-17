@@ -31,7 +31,7 @@ need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (P
   ssh-key secrets image infra config dns images deploy \
   infra-plan dns-plan config-vms drift-dns \
   test-vm test-isolation test-dns test-ip test-app test-persist test-secrets \
-  dev-secret dev-up dev-test dev-persist dev-down dev-clean
+  pdf dev-secret dev-up dev-test dev-persist dev-down dev-clean
 
 ##@ Glavni tok
 help: ## ovaj popis
@@ -156,6 +156,10 @@ test-persist: ## AO-10: unos, ponovno kreiranje kontejnera baze, provjera
 
 test-secrets: ## AO-9: nijedna tajna nije u Gitu (ni u historiji)
 > bash tests/secrets.sh
+
+##@ Dokumentacija
+pdf: ## PDF za predaju iz docs/adr (REPO_URL=https://... make pdf)
+> bash scripts/build-pdf.sh
 
 ##@ Razvoj aplikacije (lokalno, bez VM-ova)
 dev-secret: ## lozinka baze za razvoj u .secrets/ (samo ako ne postoji; nije u Gitu)
