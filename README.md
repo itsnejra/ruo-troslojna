@@ -143,6 +143,62 @@ Nakon dodavanja u grupe treba se ponovo prijaviti (`wsl --shutdown` u PowerShell
 ansible-galaxy collection install -r ansible/requirements.yml
 ```
 
+### Pokretanje na drugom računaru
+
+Projekat ne zavisi ni od čega što nije u repozitoriju. Tajne, ključevi, zlatna slika, slike kontejnera i generisane datoteke prave se pri prvom `make all`.
+
+**Okruženje:** isto kao za vježbe predmeta. `00-setup.sh` iz repozitorija predmeta instalira sve osim Dockera, a Docker se instalira sa `INSTALL_DOCKER=1 ./00-setup.sh` ili se koristi Docker Desktop. Zatim:
+
+```bash
+git clone https://github.com/itsnejra/ruo-troslojna.git ~/ruo-troslojna && cd ~/ruo-troslojna
+```
+
+```bash
+make check && make all && make test
+```
+
+| | Prvo pokretanje | Svako sljedeće |
+|---|---|---|
+| `make all` | ~10 min: Packer gradi zlatnu sliku i preuzima Ubuntu cloud sliku (~600 MB) | ~1–2 min |
+| internet | potreban (cloud slika, apt paketi u Packeru, bazne Docker slike, Terraform provideri) | nije potreban |
+| sudo lozinka | `make all` jednom (rola `router`), `make test` jednom | isto |
+
+**Resursi:** 4 VM-a trebaju ~4,5 GB RAM-a (`make check` upozorava ako nema dovoljno) i ~5 GB diska (slika, VM diskovi, arhive slika).
+
+**Šta se mijenja na hostu** (sve uklanja `make destroy`):
+- libvirt: mreže `ruo-infra/web/app/db`, VM-ovi `ruo-*` i diskovi `ruo-*` u poolu `default`;
+- nftables tabela `inet ruo3t`, koja važi **samo** za promet projektnih sučelja; tuđa pravila ne dira;
+- namespace `ruo-klijent` s veth parom, `/etc/ruo/`, `/usr/local/sbin/ruo-klijent-ns`, `/etc/sysctl.d/60-ruo.conf`.
+
+Imena se ne sudaraju s labovima predmeta (tabela `inet ruo`, mreže 10.40/10.50).
+
+**Testirane verzije:**
+
+| Alat | Verzija |
+|---|---|
+| host | Ubuntu 26.04 u WSL2 (Windows 11) |
+| Terraform | 1.17.1 |
+| libvirt provider | 0.8.3 (zaključan) |
+| Packer | 1.16.2 |
+| ansible-core | 2.20.1 |
+| Docker | 29.1.3 |
+| QEMU | 10.2 |
+| libvirt | 12.0 |
+
+Kolekcije u `ansible/requirements.yml` imaju najmanje verzije koje odgovaraju Ansible paketu iz Ubuntu 24.04. Gost u VM-ovima je uvijek Ubuntu 24.04 iz zlatne slike, bez obzira na host.
+
+**Ako nešto ne radi:**
+
+| Simptom | Uzrok | Rješenje |
+|---|---|---|
+| `make check`: `/dev/kvm` ili libvirt | korisnik nije u grupama `kvm`/`libvirt`, ili nema ugniježđene virtualizacije | `sudo usermod -aG kvm,libvirt $USER`, pa ponovna prijava (WSL: `wsl --shutdown`) |
+| Ansible ignoriše `ansible.cfg` | repozitorij je na `/mnt/c/...` | klonirati u `~/` |
+| `Timed out waiting for become ... password prompt` | `sudo-rs` (Ubuntu 25.10+) | već riješeno (`group_vars/hypervisor.yml` koristi `sudo.ws` ako postoji) |
+| `Permission denied` na disku VM-a | AppArmor nad libvirt slikama | `security_driver = "none"` u `/etc/libvirt/qemu.conf`, `sudo systemctl restart libvirtd` (napomena iz bilješki sedmice 2) |
+| `corrupted-image: EOF` u Terraformu | prolazna greška libvirt providera 0.8 | `make infra` je ponavlja automatski; ručno: pokrenuti ponovo |
+| `BADTIME` pri `make dns` | sat VM-a ne odgovara satu hosta | sat dolazi od hipervizora (`chrony` + `ptp_kvm`); `make test-vm` pokazuje razliku |
+| test izolacije: dozvoljeni tokovi su blokirani | Docker na hostu postavio iptables `FORWARD` policy na `DROP`, a libvirt koristi nftables backend | `sudo iptables -S FORWARD`; rješenje je da Docker ne mijenja forward politiku (`"ip-forward-no-drop": true` u `/etc/docker/daemon.json`, Docker 28+) |
+
 ### Podizanje, test, uklanjanje
 
 ```bash

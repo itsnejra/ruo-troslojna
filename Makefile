@@ -40,10 +40,14 @@ help: ## ovaj popis
 check: ## provjera da su svi potrebni alati instalirani i da okruženje radi
 > @ok=1; for t in git make curl openssl python3 docker terraform packer ansible-playbook ansible-vault virsh qemu-img dig nsupdate nft; do \
 >   if command -v $$t >/dev/null; then printf '  \033[32mok\033[0m     %s\n' $$t; else printf '  \033[31mnema\033[0m   %s\n' $$t; ok=0; fi; done; \
-> case "$$(command -v docker)" in /mnt/*) echo "  !!     docker je Windows binarka (Docker Desktop): treba Docker Engine u WSL-u"; ok=0;; esac; \
-> docker info >/dev/null 2>&1 && echo "  ok     docker daemon" || { echo "  !!     docker daemon ne radi"; ok=0; }; \
-> [ -w /dev/kvm ] && echo "  ok     /dev/kvm" || { echo "  !!     /dev/kvm nije dostupan (KVM)"; ok=0; }; \
-> $(VIRSH) list >/dev/null 2>&1 && echo "  ok     libvirt (qemu:///system)" || { echo "  !!     libvirt ne radi"; ok=0; }; \
+> docker info >/dev/null 2>&1 && echo "  ok     docker daemon ($$(docker info --format '{{.OperatingSystem}}' 2>/dev/null))" || { echo "  !!     docker daemon ne radi (ili korisnik nije u grupi docker)"; ok=0; }; \
+> case "$$(command -v docker)" in /mnt/*) echo "  napomena: docker je Docker Desktop; za build i docker save to radi, ali preporuka je Docker Engine u WSL-u";; esac; \
+> [ -w /dev/kvm ] && echo "  ok     /dev/kvm" || { echo "  !!     /dev/kvm nije dostupan (KVM, grupa kvm)"; ok=0; }; \
+> $(VIRSH) list >/dev/null 2>&1 && echo "  ok     libvirt (qemu:///system)" || { echo "  !!     libvirt ne radi (servis libvirtd, grupa libvirt)"; ok=0; }; \
+> $(VIRSH) pool-info default >/dev/null 2>&1 && echo "  ok     libvirt pool default" || { echo "  !!     nema libvirt poola 'default' (00-setup.sh ga pravi)"; ok=0; }; \
+> mem=$$(awk '/MemAvailable/{print int($$2/1048576)}' /proc/meminfo); \
+> [ "$$mem" -ge 5 ] && echo "  ok     slobodna memorija: $${mem} GB" || echo "  !!     slobodna memorija $${mem} GB; 4 VM-a trebaju ~4,5 GB"; \
+> case "$$(pwd)" in /mnt/*) echo "  !!     repozitorij je na /mnt/...: Ansible tada ignoriše ansible.cfg; klonirati u ~/"; ok=0;; esac; \
 > for c in ansible.posix community.docker community.general; do \
 >   ansible-galaxy collection list $$c 2>/dev/null | grep -q "^$$c " && echo "  ok     kolekcija $$c" || { echo "  !!     nema kolekcije $$c: ansible-galaxy collection install -r ansible/requirements.yml"; ok=0; }; done; \
 > [ $$ok = 1 ] || { echo "Okruženje nije spremno (README.md, Preduslovi)."; exit 1; }

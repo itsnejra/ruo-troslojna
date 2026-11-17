@@ -1,6 +1,11 @@
-# Kolekcije s tačnim verzijama (iste kao na računaru na kojem je projekat testiran).
-# make check ih instalira u ansible/collections ako nedostaju.
+# Kolekcije koje projekat koristi, s NAJMANJOM verzijom koja ima sve potrebne module
+# (docker_compose_v2 s wait/profiles, docker_image load, filesystem, mount, sysctl).
+# Paket "ansible" iz Ubuntu 24.04 (okruženje 00-setup.sh predmeta) ih već sadrži, pa instalacija
+# obično nije potrebna; make check javlja ako nedostaju.
+#   ansible-galaxy collection install -r ansible/requirements.yml
+#
+# Testirano s: ansible-core 2.20.1, ansible.posix 2.1.0, community.docker 5.0.4, community.general 12.1.0.
 collections:
-  - { name: ansible.posix, version: "2.1.0" }
-  - { name: community.docker, version: "5.0.4" }
-  - { name: community.general, version: "12.1.0" }
+  - { name: ansible.posix, version: ">=1.5.0" }
+  - { name: community.docker, version: ">=3.7.0" }
+  - { name: community.general, version: ">=8.0.0" }
