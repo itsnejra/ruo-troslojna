@@ -157,6 +157,8 @@ git clone https://github.com/itsnejra/ruo-troslojna.git ~/ruo-troslojna && cd ~/
 make check && make all && make test
 ```
 
+Ako se Ansible pokreće **direktno** (bez `make`), prvo treba `make secrets`. `ansible.cfg` čita lozinku vaulta iz `.vault_pass`, a ta datoteka u svježem klonu ne postoji dok je `make secrets` (ili `make all`) ne napravi.
+
 | | Prvo pokretanje | Svako sljedeće |
 |---|---|---|
 | `make all` | ~10 min: Packer gradi zlatnu sliku i preuzima Ubuntu cloud sliku (~600 MB) | ~1–2 min |

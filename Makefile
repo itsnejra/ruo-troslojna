@@ -50,6 +50,7 @@ check: ## provjera da su svi potrebni alati instalirani i da okruženje radi
 > case "$$(pwd)" in /mnt/*) echo "  !!     repozitorij je na /mnt/...: Ansible tada ignoriše ansible.cfg; klonirati u ~/"; ok=0;; esac; \
 > for c in ansible.posix community.docker community.general; do \
 >   ansible-galaxy collection list $$c 2>/dev/null | grep -q "^$$c " && echo "  ok     kolekcija $$c" || { echo "  !!     nema kolekcije $$c: ansible-galaxy collection install -r ansible/requirements.yml"; ok=0; }; done; \
+> [ -s .vault_pass ] || echo "  napomena: tajne još ne postoje; make all ih pravi (za direktne ansible naredbe: make secrets)"; \
 > [ $$ok = 1 ] || { echo "Okruženje nije spremno (README.md, Preduslovi)."; exit 1; }
 
 all: check secrets image infra config dns deploy ## sve redom: od praznog sistema do aplikacije koja radi
