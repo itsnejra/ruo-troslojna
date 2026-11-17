@@ -161,7 +161,7 @@ Ako se Ansible pokreće **direktno** (bez `make`), prvo treba `make secrets`. `a
 
 | | Prvo pokretanje | Svako sljedeće |
 |---|---|---|
-| `make all` | ~10 min: Packer gradi zlatnu sliku i preuzima Ubuntu cloud sliku (~600 MB) | ~1–2 min |
+| `make all` | **7 min 57 s** (izmjereno iz svježeg klona s GitHuba: Packer gradi zlatnu sliku, slike kontejnera se grade ispočetka), a nakon toga `make test`: svi testovi prolaze | ~1–2 min |
 | internet | potreban (cloud slika, apt paketi u Packeru, bazne Docker slike, Terraform provideri) | nije potreban |
 | sudo lozinka | `make all` jednom (rola `router`), `make test` jednom | isto |
 
