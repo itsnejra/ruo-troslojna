@@ -76,9 +76,9 @@ destroy: ## uklanja sve što je projekat kreirao (zlatna slika i arhive ostaju k
 > else echo "nema DNS zapisa"; fi
 > @$(call banner,2/4 ruter i namespace klijenta na hostu)
 > @if [ -f ansible/inventory/hosts.yml ]; then $(PLAYBOOK) teardown.yml $(ANSIBLE_ARGS); else echo "nema inventoryja (ruter nije postavljen)"; fi
-> @$(call banner,3/4 VM-ovi, diskovi i mreže)
+> @$(call banner,3/4 VM-ovi + diskovi + mreže)
 > @if [ -s terraform/vm/terraform.tfstate ]; then bash scripts/tf-retry.sh $(TF_VM) destroy -auto-approve -input=false; else echo "nema VM-ova"; fi
-> @$(call banner,4/4 generisane datoteke, stanje i tajne)
+> @$(call banner,4/4 generisane datoteke + stanje + tajne)
 > rm -f ansible/inventory/hosts.yml ansible/inventory/group_vars/all/generated.yml ansible/known_hosts
 > rm -f terraform/vm/terraform.tfstate* terraform/dns/terraform.tfstate*
 > rm -f .vault_pass ansible/inventory/group_vars/all/vault.yml

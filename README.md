@@ -256,9 +256,9 @@ make close      # gasi tunel
 Destroy complete! Resources: 12 destroyed.
 == 2/4 ruter i namespace klijenta na hostu
 localhost : ok=4  changed=2  unreachable=0  failed=0
-== 3/4 VM-ovi, diskovi i mreže
+== 3/4 VM-ovi + diskovi + mreže
 Destroy complete! Resources: 25 destroyed.
-== 4/4 generisane datoteke, stanje i tajne
+== 4/4 generisane datoteke + stanje + tajne
 == provjera: ništa od projekta ne smije ostati
   VM-ovi:  0
   mreže:   0
