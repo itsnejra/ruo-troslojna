@@ -17,24 +17,33 @@ Infrastruktura za web aplikaciju s frontendom, backendom i bazom podataka, opisa
 
 Okruženje se podiže i uklanja jednom naredbom, bez ručnih koraka. Svaka obavezna arhitektonska odluka (AO) ima automatski test.
 
-## Brzi start
+## Brzi start: cijeli redoslijed pokretanja
 
-Na Ubuntuu (24.04+ ili WSL2) s uključenim KVM-om, od praznog računara:
+Ubuntu 24.04+ (ili WSL2 s Ubuntuom) s uključenim KVM-om. Sve naredbe se kucaju u Linux terminalu.
+
+| # | Naredba | Šta radi | Lozinka | Očekivano na kraju |
+|---|---|---|---|---|
+| 0 | `git clone https://github.com/itsnejra/ruo-troslojna.git ~/ruo-troslojna && cd ~/ruo-troslojna` | preuzima projekat (u `~/`, ne u `/mnt/c/...`) | ne | folder `ruo-troslojna` |
+| 1 | `make setup` | jednom: instalira alate koji nedostaju, grupe `libvirt`/`kvm`/`docker`, libvirt pool, Ansible kolekcije | da | `Gotovo.`; ako piše da je korisnik dodan u grupe: `wsl --shutdown` u PowerShellu pa ponovo otvoriti Ubuntu |
+| 2 | `make check` | provjerava alate, Docker, KVM, libvirt, kolekcije i memoriju; ništa ne mijenja | ne | svi redovi `ok` |
+| 3 | `make all` | tajne → zlatna slika (Packer) → VM-ovi (Terraform) → ruter, vatrozid, Docker, DNS (Ansible) → DNS zapisi (Terraform) → aplikacija (Ansible) | da, kod `BECOME password:` | `== GOTOVO`, `failed=0` |
+| 4 | `make test` | svi testovi: VM-ovi, izolacija, DNS, IP adrese, aplikacija, perzistencija, tajne | da | `Svi testovi su prošli.` |
+| 5 | `make open` | (po želji) aplikacija u pregledniku kroz „internet" projekta | da | `otvori u pregledniku: http://localhost:8081`; `make close` gasi |
+| 6 | `make all` | drugo izvršavanje: dokaz idempotentnosti | da | Terraform `No changes`, Ansible `changed=0` |
+| 7 | `make destroy` | uklanja sve što je projekat napravio (i tunel iz koraka 5) | da | `VM-ovi: 0`, `mreže: 0`, `diskovi: 0` |
+
+Prvi `make all` traje oko 8 minuta (Packer gradi sliku), a svaki sljedeći 1–2 minute.
+
+**Tok odbrane** (koraci 7 → 3 → 4 → 6):
 
 ```bash
-git clone https://github.com/itsnejra/ruo-troslojna.git ~/ruo-troslojna && cd ~/ruo-troslojna
+make destroy
+make all
+make test
+make all
 ```
 
-```bash
-make setup      # jednom: alati, grupe, libvirt pool, kolekcije (samo ono što nedostaje; traži sudo)
-make check      # da li je sve spremno
-make all        # od praznog sistema do aplikacije koja radi (prvi put ~8 min; traži sudo lozinku)
-make test       # svi testovi sa sažetkom (traži sudo)
-make open       # aplikacija u pregledniku: http://localhost:8081 (make close gasi)
-make destroy    # uklanja sve što je projekat napravio
-```
-
-Tok odbrane: `make destroy && make all && make test && make all` (drugi `make all` bez promjena). Svi ciljevi: `make help`. Detalji (preduslovi, šta se mijenja na hostu, rješavanje problema) su u [poglavlju 4](#4-pokretanje-od-praznog-računara).
+Svi ciljevi s opisom: `make help`. Detalji (preduslovi, šta se mijenja na hostu, rješavanje problema) su u [poglavlju 4](#4-pokretanje-od-praznog-računara).
 
 **Sadržaj:**
 [1. Aplikacija i arhitektura](#1-aplikacija-i-arhitektura) ·
@@ -508,4 +517,4 @@ Makefile        ulaz u sve korake (make help)
 - **Frontend radi na HTTP-u, bez TLS-a.** U produkciji bi certifikat izdavao ACME, i to DNS-01 izazovom kroz isti RFC 2136 mehanizam.
 - **Povremena greška libvirt providera 0.8:** odmah nakon kreiranja cloud-init ISO-a provider ga ponekad ne uspije pročitati (`corrupted-image: EOF`). ISO je ispravan (provjereno `isoinfo`), a sljedeće izvršavanje prolazi. `scripts/tf-retry.sh` ponavlja naredbu jednom, ali **samo za tu poruku**. Ako se obični `terraform plan` pokrene u prvoj minuti nakon `apply`, rijetko se može vidjeti ova greška; ponovno pokretanje je rješava.
 - **Ubuntu 26.04 koristi `sudo-rs`**, koji ne radi s Ansible `become`. Na hostu se zato koristi klasični `sudo.ws` (`group_vars/hypervisor.yml`); sistemska postavka se ne mijenja.
-- Kolekcija `ansible.posix` ispisuje upozorenja o zastarjelim internim API-jima. Upozorenja dolaze iz kolekcije i ne utiču na rezultat.
+- Kolekcija `ansible.posix` koristi interne API-je koje novi ansible-core najavljuje za uklanjanje. Ta upozorenja su za autore kolekcije i ne utiču na rezultat, pa ih `ansible.cfg` ne ispisuje (`deprecation_warnings = False`).

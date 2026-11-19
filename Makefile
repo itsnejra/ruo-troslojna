@@ -68,6 +68,8 @@ test: ## svi testovi (AO-1, AO-3..AO-10) sa sažetkom; traži sudo
 > bash tests/run-all.sh
 
 destroy: ## uklanja sve što je projekat kreirao (zlatna slika i arhive ostaju kao keš; vidi distclean)
+> @# tunel za preglednik (make open) se gasi samo ako radi, pa destroy bez tunela ne traži sudo za to
+> @if [ -n "$$(ss -Hltn 'sport = :$(OPEN_PORT)')" ]; then $(MAKE) --no-print-directory close; fi
 > @$(call banner,1/4 DNS zapisi: dok DNS server još radi)
 > @if [ -s terraform/dns/terraform.tfstate ]; then \
 >   $(TF_DNS) destroy -auto-approve -input=false || { echo "DNS server nije dostupan: zapisi su nestali s njim, brišem stanje"; rm -f terraform/dns/terraform.tfstate*; }; \
@@ -137,7 +139,6 @@ infra: ssh-key image ## Terraform: mreže, diskovi, VM-ovi, inventory i known_ho
 > @$(call need,terraform)
 > $(TF_VM) init -input=false
 > bash scripts/tf-retry.sh $(TF_VM) apply -auto-approve -input=false
-> $(TF_VM) output hosts
 
 config: secrets ## Ansible: ruter na hostu, vatrozid, Docker, DNS server (AO-5, AO-6, AO-7)
 > @$(call need,ansible-playbook)
@@ -151,7 +152,6 @@ dns: secrets ## Terraform: DNS zapisi servisa, hostova i PTR (RFC 2136 + TSIG, A
 > @$(call need,terraform)
 > $(TF_DNS) init -input=false
 > $(TF_DNS) apply -auto-approve -input=false
-> $(TF_DNS) output servisi
 
 images: ## Docker: build frontend/backend, zaključana slika baze, arhive za isporuku (DO-5)
 > @$(call need,docker)
