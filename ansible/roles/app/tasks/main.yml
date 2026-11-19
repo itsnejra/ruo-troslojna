@@ -94,12 +94,27 @@
     source: load
     load_path: "{{ app_dir }}/images/{{ app_slike[app_slika].arhiva | basename }}"
 
-- name: Kontejner sloja radi i zdrav je (compose profil {{ app_profil }})
+- name: Kontejner sloja radi (compose profil {{ app_profil }})
   community.docker.docker_compose_v2:
     project_src: "{{ app_dir }}"
     profiles: ["{{ app_profil }}"]
     state: present
     pull: never
-    wait: true
-    wait_timeout: 180
-  register: app_compose
+
+# restart nakon izmjene pg_hba.conf se izvršava odmah, da sljedeća provjera čeka i njega
+- name: Handleri odmah (restart prije provjere zdravlja)
+  ansible.builtin.meta: flush_handlers
+
+# Čekanje na healthcheck je zaseban zadatak, a ne parametar "wait" modula docker_compose_v2:
+# taj parametar postoji tek od community.docker 3.8, a Ubuntu 24.04 (paket ansible) ima 3.7.
+- name: Kontejner sloja je zdrav (healthcheck iz slike)
+  ansible.builtin.command:
+    cmd: "docker compose --profile {{ app_profil }} ps --format {% raw %}'{{.Health}}'{% endraw %}"
+    chdir: "{{ app_dir }}"
+  register: app_zdravlje
+  until: >-
+    app_zdravlje.stdout_lines | length > 0 and
+    app_zdravlje.stdout_lines | reject('equalto', 'healthy') | list | length == 0
+  retries: 60
+  delay: 3
+  changed_when: false

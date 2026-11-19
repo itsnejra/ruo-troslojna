@@ -1,10 +1,15 @@
 # Kolekcije koje projekat koristi, s NAJMANJOM verzijom koja ima sve potrebne module
-# (docker_compose_v2 s wait/profiles, docker_image load, filesystem, mount, sysctl).
+# (docker_compose_v2 s profiles i pull, docker_image load, filesystem, mount, sysctl).
 # Paket "ansible" iz Ubuntu 24.04 (okruženje 00-setup.sh predmeta) ih već sadrži, pa instalacija
 # obično nije potrebna; make check javlja ako nedostaju.
 #   ansible-galaxy collection install -r ansible/requirements.yml
 #
-# Testirano s: ansible-core 2.20.1, ansible.posix 2.1.0, community.docker 5.0.4, community.general 12.1.0.
+# Projekat namjerno ne koristi novije parametre (npr. "wait" iz community.docker 3.8): čekanje na
+# healthcheck je zaseban zadatak u roli app, pa radi i s verzijama iz Ubuntu 24.04.
+#
+# Testirano s: ansible-core 2.20.1 i
+#   - ansible.posix 2.1.0, community.docker 5.0.4, community.general 12.1.0 (Ubuntu 26.04)
+#   - ansible.posix 1.5.4, community.docker 3.7.0, community.general 8.3.0 (verzije iz Ubuntu 24.04)
 collections:
   - { name: ansible.posix, version: ">=1.5.0" }
   - { name: community.docker, version: ">=3.7.0" }

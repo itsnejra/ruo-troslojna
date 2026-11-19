@@ -4,5 +4,3 @@
     project_src: "{{ app_dir }}"
     profiles: ["{{ app_profil }}"]
     state: restarted
-    wait: true
-    wait_timeout: 180
