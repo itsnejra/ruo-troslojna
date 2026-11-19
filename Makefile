@@ -33,9 +33,9 @@ need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (P
   ssh-key secrets image infra config dns images deploy \
   infra-plan dns-plan config-vms drift-dns open close \
   test-vm test-isolation test-dns test-ip test-app test-persist test-secrets \
-  pdf dev-secret dev-up dev-test dev-persist dev-down dev-clean
+  pdf dev-secret dev-up dev-test dev-down dev-clean
 
-##@ Glavni tok
+##@ Glavni tok (redom: setup -> check -> all -> test; destroy uklanja sve)
 help: ## ovaj popis
 > @awk 'BEGIN{FS=":.*## "} /^##@/{printf "\n\033[1m%s\033[0m\n", substr($$0,5)} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 
@@ -85,11 +85,36 @@ destroy: ## uklanja sve što je projekat kreirao (zlatna slika i arhive ostaju k
 > @n=$$($(VIRSH) net-list --all --name | grep -c '^ruo-' || true); echo "  mreže:   $$n"
 > @n=$$($(VIRSH) vol-list default | grep -c ' ruo-' || true); echo "  diskovi: $$n"
 
-distclean: destroy ## destroy + zlatna slika, arhive slika, Terraform provideri i lokalne Docker slike
-> rm -rf build terraform/vm/.terraform terraform/dns/.terraform terraform/vm/image.auto.tfvars
-> -docker image ls --format '{{.Repository}}:{{.Tag}}' | grep '^ruo/' | xargs -r docker rmi
+##@ Za odbranu i pregled
+infra-plan: ## Terraform plan za VM-ove (nakon apply očekivano: No changes)
+> bash scripts/tf-retry.sh $(TF_VM) plan -input=false
 
-##@ Koraci (all ih pokreće redom)
+dns-plan: ## Terraform plan za DNS zapise (nakon apply očekivano: No changes)
+> $(TF_DNS) plan -input=false
+
+drift-dns: ## drift: zapis mijenjamo mimo koda (nsupdate), plan ga vidi, apply ispravlja
+> bash scripts/drift-dns.sh
+
+# Preglednik nije u "internetu" projekta, pa socat na hostu prima vezu na localhost:$(OPEN_PORT) i
+# svaku prosljeđuje IZ namespace-a ruo-klijent na www.<zona>:80. Zahtjev zato prolazi kroz isti
+# vatrozid kao korisnik s interneta (samo do frontenda); politika izolacije se ne mijenja.
+# WSL2 prosljeđuje localhost u Windows, pa adresa radi i u pregledniku na Windowsu.
+# Naredba u EXEC je u '...': socat 1.8 inače dvotačke iz "TCP:ime:80" čita kao svoje razdvajače.
+open: ## aplikacija (VM-ovi) u pregledniku: http://localhost:8081, kroz namespace klijenta (sudo)
+> @$(call need,socat)
+> @ip netns list | grep -qw ruo-klijent || { echo "Nema namespace-a ruo-klijent: prvo make all"; exit 1; }
+> @if [ -n "$$(ss -Hltn 'sport = :$(OPEN_PORT)')" ]; then echo "port $(OPEN_PORT) je već otvoren (tunel radi)"; else \
+>   z=$$($(TF_VM) output -raw zone); sudo -v; \
+>   sudo -b socat TCP4-LISTEN:$(OPEN_PORT),bind=localhost,reuseaddr,fork \
+>     EXEC:"'ip netns exec ruo-klijent socat STDIO TCP:www.$$z:80'" >/dev/null 2>&1; \
+>   for _ in $$(seq 20); do curl -fsS -o /dev/null http://localhost:$(OPEN_PORT)/healthz 2>/dev/null && break; sleep 0.25; done; fi
+> @curl -fsS -o /dev/null http://localhost:$(OPEN_PORT)/healthz && echo "otvori u pregledniku: http://localhost:$(OPEN_PORT)   (zatvaranje: make close)"
+
+close: ## gasi tunel za preglednik
+> @# [N] u uzorku: pkill tako ne pronalazi vlastitu naredbu
+> @sudo pkill -f 'socat TCP4-LISTE[N]:$(OPEN_PORT),' && echo "tunel zatvoren" || echo "tunel nije radio"
+
+##@ Pojedinačni koraci (all ih pokreće redom)
 ssh-key: ## projektni SSH ključ administratora (~/.ssh/ruo_ed25519, van repozitorija)
 > @test -f $(SSH_KEY) || { mkdir -p ~/.ssh && chmod 700 ~/.ssh && ssh-keygen -q -t ed25519 -N "" -C "ruo-admin" -f $(SSH_KEY) && echo "napravljen $(SSH_KEY)"; }
 
@@ -119,6 +144,9 @@ config: secrets ## Ansible: ruter na hostu, vatrozid, Docker, DNS server (AO-5, 
 > @test -f ansible/inventory/hosts.yml || { echo "Nema inventoryja: prvo make infra"; exit 1; }
 > $(PLAYBOOK) config.yml $(ANSIBLE_ARGS)
 
+config-vms: secrets ## isto kao config, ali samo VM-ovi (bez sudo na hostu)
+> $(PLAYBOOK) config.yml --limit vms
+
 dns: secrets ## Terraform: DNS zapisi servisa, hostova i PTR (RFC 2136 + TSIG, AO-8)
 > @$(call need,terraform)
 > $(TF_DNS) init -input=false
@@ -132,38 +160,6 @@ images: ## Docker: build frontend/backend, zaključana slika baze, arhive za isp
 deploy: images ## Ansible: isporuka aplikacije na VM-ove (baza -> backend -> frontend)
 > @test -f ansible/inventory/hosts.yml || { echo "Nema inventoryja: prvo make infra"; exit 1; }
 > $(PLAYBOOK) deploy.yml
-
-##@ Pregled i demonstracije
-infra-plan: ## Terraform plan za VM-ove (nakon apply očekivano: No changes)
-> bash scripts/tf-retry.sh $(TF_VM) plan -input=false
-
-dns-plan: ## Terraform plan za DNS zapise (nakon apply očekivano: No changes)
-> $(TF_DNS) plan -input=false
-
-config-vms: secrets ## konfiguracija samo VM-ova (bez sudo na hostu)
-> $(PLAYBOOK) config.yml --limit vms
-
-drift-dns: ## drift: zapis mijenjamo mimo koda (nsupdate), plan ga vidi, apply ispravlja
-> bash scripts/drift-dns.sh
-
-# Preglednik nije u "internetu" projekta, pa socat na hostu prima vezu na localhost:$(OPEN_PORT) i
-# svaku prosljeđuje IZ namespace-a ruo-klijent na www.<zona>:80. Zahtjev zato prolazi kroz isti
-# vatrozid kao korisnik s interneta (samo do frontenda); politika izolacije se ne mijenja.
-# WSL2 prosljeđuje localhost u Windows, pa adresa radi i u pregledniku na Windowsu.
-# Naredba u EXEC je u '...': socat 1.8 inače dvotačke iz "TCP:ime:80" čita kao svoje razdvajače.
-open: ## aplikacija (VM-ovi) u pregledniku: http://localhost:8081, kroz namespace klijenta (sudo)
-> @$(call need,socat)
-> @ip netns list | grep -qw ruo-klijent || { echo "Nema namespace-a ruo-klijent: prvo make all"; exit 1; }
-> @if [ -n "$$(ss -Hltn 'sport = :$(OPEN_PORT)')" ]; then echo "port $(OPEN_PORT) je već otvoren (tunel radi)"; else \
->   z=$$($(TF_VM) output -raw zone); sudo -v; \
->   sudo -b socat TCP4-LISTEN:$(OPEN_PORT),bind=localhost,reuseaddr,fork \
->     EXEC:"'ip netns exec ruo-klijent socat STDIO TCP:www.$$z:80'" >/dev/null 2>&1; \
->   for _ in $$(seq 20); do curl -fsS -o /dev/null http://localhost:$(OPEN_PORT)/healthz 2>/dev/null && break; sleep 0.25; done; fi
-> @curl -fsS -o /dev/null http://localhost:$(OPEN_PORT)/healthz && echo "otvori u pregledniku: http://localhost:$(OPEN_PORT)   (zatvaranje: make close)"
-
-close: ## gasi tunel za preglednik
-> @# [N] u uzorku: pkill tako ne pronalazi vlastitu naredbu
-> @sudo pkill -f 'socat TCP4-LISTE[N]:$(OPEN_PORT),' && echo "tunel zatvoren" || echo "tunel nije radio"
 
 ##@ Pojedinačni testovi (make test pokreće sve)
 test-vm: ## AO-3/AO-4: plan bez promjena, cloud-init, SSH ključem da, lozinkom ne, sat
@@ -187,9 +183,13 @@ test-persist: ## AO-10: unos, ponovno kreiranje kontejnera baze, provjera
 test-secrets: ## AO-9: nijedna tajna nije u Gitu (ni u historiji)
 > bash tests/secrets.sh
 
-##@ Dokumentacija
+##@ Ostalo
 pdf: ## PDF za predaju iz docs/adr (REPO_URL=https://... make pdf)
 > bash scripts/build-pdf.sh
+
+distclean: destroy ## destroy + zlatna slika, arhive slika, Terraform provideri i lokalne Docker slike
+> rm -rf build terraform/vm/.terraform terraform/dns/.terraform terraform/vm/image.auto.tfvars
+> -docker image ls --format '{{.Repository}}:{{.Tag}}' | grep '^ruo/' | xargs -r docker rmi
 
 ##@ Razvoj aplikacije (lokalno, bez VM-ova)
 dev-secret: ## lozinka baze za razvoj u .secrets/ (samo ako ne postoji; nije u Gitu)
@@ -204,14 +204,6 @@ dev-up: dev-secret ## build i pokretanje sva tri sloja (http://localhost:8080)
 
 dev-test: ## provjera s kraja na kraj preko frontenda
 > bash tests/app.sh http://localhost:8080
-
-dev-persist: ## AO-10 lokalno: upis, ponovno kreiranje kontejnera baze, čitanje
-> @$(call banner,upis markera)
-> m="persist-$$(date +%s)"; curl -fsS -X POST -H 'Content-Type: application/json' -d "{\"text\":\"$$m\"}" localhost:8080/api/notes >/dev/null; echo "$$m" > .secrets/marker
-> @$(call banner,ponovno kreiranje kontejnera baze)
-> $(DEV) up -d --force-recreate --wait db
-> @$(call banner,čitanje nakon recreate)
-> curl -fsS localhost:8080/api/notes | grep -q "$$(cat .secrets/marker)" && echo "ok: podatak je preživio ponovno kreiranje kontejnera baze"
 
 dev-down: ## zaustavlja kontejnere (podaci ostaju u volumenu)
 > $(DEV) down

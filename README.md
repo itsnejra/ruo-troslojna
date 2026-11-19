@@ -17,9 +17,24 @@ Infrastruktura za web aplikaciju s frontendom, backendom i bazom podataka, opisa
 
 Okruženje se podiže i uklanja jednom naredbom, bez ručnih koraka. Svaka obavezna arhitektonska odluka (AO) ima automatski test.
 
+## Brzi start
+
+Na Ubuntuu (24.04+ ili WSL2) s uključenim KVM-om, od praznog računara:
+
 ```bash
-make destroy && make all && make test && make all     # tok odbrane
+git clone https://github.com/itsnejra/ruo-troslojna.git ~/ruo-troslojna && cd ~/ruo-troslojna
 ```
+
+```bash
+make setup      # jednom: alati, grupe, libvirt pool, kolekcije (samo ono što nedostaje; traži sudo)
+make check      # da li je sve spremno
+make all        # od praznog sistema do aplikacije koja radi (prvi put ~8 min; traži sudo lozinku)
+make test       # svi testovi sa sažetkom (traži sudo)
+make open       # aplikacija u pregledniku: http://localhost:8081 (make close gasi)
+make destroy    # uklanja sve što je projekat napravio
+```
+
+Tok odbrane: `make destroy && make all && make test && make all` (drugi `make all` bez promjena). Svi ciljevi: `make help`. Detalji (preduslovi, šta se mijenja na hostu, rješavanje problema) su u [poglavlju 4](#4-pokretanje-od-praznog-računara).
 
 **Sadržaj:**
 [1. Aplikacija i arhitektura](#1-aplikacija-i-arhitektura) ·
@@ -257,7 +272,7 @@ Zlatna slika i arhive kontejnerskih slika namjerno ostaju kao keš izgradnje (ar
 `app/compose.dev.yaml` pokreće sva tri sloja na jednom računaru. Segmenti su tu Docker mreže, a `app` i `db` su `internal`.
 
 ```bash
-make dev-up && make dev-test && make dev-persist      # http://localhost:8080
+make dev-up && make dev-test      # http://localhost:8080 (make dev-down gasi, make dev-clean briše podatke)
 ```
 
 ## 5. DNS zona i zapisi kao kod
