@@ -23,13 +23,15 @@ TF_DNS   := bash scripts/tf-dns.sh
 ANSIBLE_ARGS ?= -K
 PLAYBOOK := cd ansible && ansible-playbook
 VIRSH    := virsh -c qemu:///system
+# make open: port na hostu za pregled aplikacije iz preglednika (8080 koristi make dev-up)
+OPEN_PORT ?= 8081
 
 banner = printf '\n\033[1;36m== %s\033[0m\n' '$(1)'
 need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (Preduslovi)."; exit 1; }
 
-.PHONY: help check all test destroy distclean \
+.PHONY: help setup check all test destroy distclean \
   ssh-key secrets image infra config dns images deploy \
-  infra-plan dns-plan config-vms drift-dns \
+  infra-plan dns-plan config-vms drift-dns open close \
   test-vm test-isolation test-dns test-ip test-app test-persist test-secrets \
   pdf dev-secret dev-up dev-test dev-persist dev-down dev-clean
 
@@ -37,25 +39,29 @@ need = command -v $(1) >/dev/null || { echo "Nedostaje '$(1)'. Vidi README.md (P
 help: ## ovaj popis
 > @awk 'BEGIN{FS=":.*## "} /^##@/{printf "\n\033[1m%s\033[0m\n", substr($$0,5)} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 
+setup: ## instalira i podešava alate na hostu (jednom; idempotentno, traži sudo)
+> bash scripts/setup.sh
+
 check: ## provjera da su svi potrebni alati instalirani i da okruženje radi
-> @ok=1; for t in git make curl openssl python3 docker terraform packer ansible-playbook ansible-vault virsh qemu-img dig nsupdate nft; do \
+> @ok=1; for t in git make curl openssl python3 docker terraform packer ansible-playbook ansible-vault virsh qemu-img dig nsupdate nft socat; do \
 >   if command -v $$t >/dev/null; then printf '  \033[32mok\033[0m     %s\n' $$t; else printf '  \033[31mnema\033[0m   %s\n' $$t; ok=0; fi; done; \
 > docker info >/dev/null 2>&1 && echo "  ok     docker daemon ($$(docker info --format '{{.OperatingSystem}}' 2>/dev/null))" || { echo "  !!     docker daemon ne radi (ili korisnik nije u grupi docker)"; ok=0; }; \
 > case "$$(command -v docker)" in /mnt/*) echo "  napomena: docker je Docker Desktop; za build i docker save to radi, ali preporuka je Docker Engine u WSL-u";; esac; \
 > [ -w /dev/kvm ] && echo "  ok     /dev/kvm" || { echo "  !!     /dev/kvm nije dostupan (KVM, grupa kvm)"; ok=0; }; \
 > $(VIRSH) list >/dev/null 2>&1 && echo "  ok     libvirt (qemu:///system)" || { echo "  !!     libvirt ne radi (servis libvirtd, grupa libvirt)"; ok=0; }; \
-> $(VIRSH) pool-info default >/dev/null 2>&1 && echo "  ok     libvirt pool default" || { echo "  !!     nema libvirt poola 'default' (00-setup.sh ga pravi)"; ok=0; }; \
+> $(VIRSH) pool-info default >/dev/null 2>&1 && echo "  ok     libvirt pool default" || { echo "  !!     nema libvirt poola 'default' (make setup ga pravi)"; ok=0; }; \
 > mem=$$(awk '/MemAvailable/{print int($$2/1048576)}' /proc/meminfo); \
 > [ "$$mem" -ge 5 ] && echo "  ok     slobodna memorija: $${mem} GB" || echo "  !!     slobodna memorija $${mem} GB; 4 VM-a trebaju ~4,5 GB"; \
 > case "$$(pwd)" in /mnt/*) echo "  !!     repozitorij je na /mnt/...: Ansible tada ignoriše ansible.cfg; klonirati u ~/"; ok=0;; esac; \
 > for c in ansible.posix community.docker community.general; do \
 >   ansible-galaxy collection list $$c 2>/dev/null | grep -q "^$$c " && echo "  ok     kolekcija $$c" || { echo "  !!     nema kolekcije $$c: ansible-galaxy collection install -r ansible/requirements.yml"; ok=0; }; done; \
 > [ -s .vault_pass ] || echo "  napomena: tajne još ne postoje; make all ih pravi (za direktne ansible naredbe: make secrets)"; \
-> [ $$ok = 1 ] || { echo "Okruženje nije spremno (README.md, Preduslovi)."; exit 1; }
+> [ $$ok = 1 ] || { echo "Okruženje nije spremno: make setup (README.md, Preduslovi)."; exit 1; }
 
 all: check secrets image infra config dns deploy ## sve redom: od praznog sistema do aplikacije koja radi
 > @$(call banner,GOTOVO)
 > @echo "  aplikacija:  http://www.$$($(TF_VM) output -raw zone)  (iz namespace-a klijenta: make test-app)"
+> @echo "  preglednik:  make open  ->  http://localhost:$(OPEN_PORT)"
 > @echo "  provjera:    make test"
 
 test: ## svi testovi (AO-1, AO-3..AO-10) sa sažetkom; traži sudo
@@ -139,6 +145,25 @@ config-vms: secrets ## konfiguracija samo VM-ova (bez sudo na hostu)
 
 drift-dns: ## drift: zapis mijenjamo mimo koda (nsupdate), plan ga vidi, apply ispravlja
 > bash scripts/drift-dns.sh
+
+# Preglednik nije u "internetu" projekta, pa socat na hostu prima vezu na localhost:$(OPEN_PORT) i
+# svaku prosljeđuje IZ namespace-a ruo-klijent na www.<zona>:80. Zahtjev zato prolazi kroz isti
+# vatrozid kao korisnik s interneta (samo do frontenda); politika izolacije se ne mijenja.
+# WSL2 prosljeđuje localhost u Windows, pa adresa radi i u pregledniku na Windowsu.
+# Naredba u EXEC je u '...': socat 1.8 inače dvotačke iz "TCP:ime:80" čita kao svoje razdvajače.
+open: ## aplikacija (VM-ovi) u pregledniku: http://localhost:8081, kroz namespace klijenta (sudo)
+> @$(call need,socat)
+> @ip netns list | grep -qw ruo-klijent || { echo "Nema namespace-a ruo-klijent: prvo make all"; exit 1; }
+> @if [ -n "$$(ss -Hltn 'sport = :$(OPEN_PORT)')" ]; then echo "port $(OPEN_PORT) je već otvoren (tunel radi)"; else \
+>   z=$$($(TF_VM) output -raw zone); sudo -v; \
+>   sudo -b socat TCP4-LISTEN:$(OPEN_PORT),bind=localhost,reuseaddr,fork \
+>     EXEC:"'ip netns exec ruo-klijent socat STDIO TCP:www.$$z:80'" >/dev/null 2>&1; \
+>   for _ in $$(seq 20); do curl -fsS -o /dev/null http://localhost:$(OPEN_PORT)/healthz 2>/dev/null && break; sleep 0.25; done; fi
+> @curl -fsS -o /dev/null http://localhost:$(OPEN_PORT)/healthz && echo "otvori u pregledniku: http://localhost:$(OPEN_PORT)   (zatvaranje: make close)"
+
+close: ## gasi tunel za preglednik
+> @# [N] u uzorku: pkill tako ne pronalazi vlastitu naredbu
+> @sudo pkill -f 'socat TCP4-LISTE[N]:$(OPEN_PORT),' && echo "tunel zatvoren" || echo "tunel nije radio"
 
 ##@ Pojedinačni testovi (make test pokreće sve)
 test-vm: ## AO-3/AO-4: plan bez promjena, cloud-init, SSH ključem da, lozinkom ne, sat

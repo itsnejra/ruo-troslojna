@@ -125,36 +125,26 @@ Baza nema objavljen port (`docker ps`: `ports=[]`), a frontend nema mrežni put 
 1. **WSL2 s Ubuntuom** (testirano: Ubuntu 26.04 na Windows 11, i9, 32 GB RAM). U PowerShellu: `wsl --install -d Ubuntu`.
 2. **systemd i ugniježđena virtualizacija.** U `/etc/wsl.conf` treba `[boot] systemd=true`, a `ls /dev/kvm` u WSL-u mora postojati.
 3. **Repozitorij u Linux fajl sistemu (`~/`), ne u `/mnt/c/...`.** Ansible ignoriše `ansible.cfg` u direktoriju u koji svi mogu pisati.
-4. **Alati.** Skripta `00-setup.sh` iz repozitorija predmeta instalira Terraform, Packer, Ansible, libvirt/KVM, BIND alate i nftables. Uz nju treba Docker Engine **u WSL-u** (ne Windows binarka Docker Desktopa):
+4. **Alati: `make setup`** (`scripts/setup.sh`, po uzoru na `00-setup.sh` predmeta). Instalira samo ono što nedostaje: Terraform, Packer, Ansible, libvirt/KVM, Docker Engine s compose i buildx, BIND alate (`dig`, `nsupdate`), nftables i socat. Uz to dodaje korisnika u grupe `libvirt`, `kvm` i `docker`, pravi libvirt pool `default` i instalira kolekcije Ansible-a. Idempotentna je: drugo pokretanje ne mijenja ništa.
 
 ```bash
-git clone https://github.com/Dadyze/RuO-2026-27.git ~/RuO-2026-27 && ~/RuO-2026-27/00-setup.sh
+make setup
 ```
 
-```bash
-sudo apt-get install -y docker.io docker-compose-v2 docker-buildx && sudo usermod -aG docker,libvirt,kvm "$USER"
-```
-
-Nakon dodavanja u grupe treba se ponovo prijaviti (`wsl --shutdown` u PowerShellu).
-
-5. **Kolekcije Ansible-a**, ako ih nema (`make check` kaže):
-
-```bash
-ansible-galaxy collection install -r ansible/requirements.yml
-```
+Ako je korisnik dodan u nove grupe, treba se ponovo prijaviti (`wsl --shutdown` u PowerShellu). Isto okruženje daje i `00-setup.sh` iz repozitorija predmeta uz `INSTALL_DOCKER=1`, a `make check` pokazuje šta eventualno fali.
 
 ### Pokretanje na drugom računaru
 
 Projekat ne zavisi ni od čega što nije u repozitoriju. Tajne, ključevi, zlatna slika, slike kontejnera i generisane datoteke prave se pri prvom `make all`.
 
-**Okruženje:** isto kao za vježbe predmeta. `00-setup.sh` iz repozitorija predmeta instalira sve osim Dockera, a Docker se instalira sa `INSTALL_DOCKER=1 ./00-setup.sh` ili se koristi Docker Desktop. Zatim:
+**Okruženje:** isto kao za vježbe predmeta; `make setup` instalira sve što nedostaje. Zatim:
 
 ```bash
 git clone https://github.com/itsnejra/ruo-troslojna.git ~/ruo-troslojna && cd ~/ruo-troslojna
 ```
 
 ```bash
-make check && make all && make test
+make setup && make check && make all && make test
 ```
 
 Ako se Ansible pokreće **direktno** (bez `make`), prvo treba `make secrets`. `ansible.cfg` čita lozinku vaulta iz `.vault_pass`, a ta datoteka u svježem klonu ne postoji dok je `make secrets` (ili `make all`) ne napravi.
@@ -208,10 +198,18 @@ git clone <ovaj repozitorij> ~/ruo-troslojna && cd ~/ruo-troslojna
 ```
 
 ```bash
+make setup      # jednom: alati, grupe, libvirt pool, kolekcije (samo ono što nedostaje)
 make check      # svi alati, Docker, /dev/kvm, libvirt, kolekcije
 make all        # od praznog sistema do aplikacije koja radi (traži sudo lozinku hosta jednom)
 make test       # svi testovi sa sažetkom (traži sudo: promet iz namespace-a klijenta)
 make destroy    # uklanja sve što je projekat kreirao i provjerava da ništa nije ostalo
+```
+
+**Aplikacija u pregledniku.** Aplikacija na VM-ovima je dostupna samo iz „interneta" projekta (namespace `ruo-klijent`), a preglednik nije u njemu. `make open` zato pokreće tunel: `socat` na hostu prima vezu na `localhost:8081` i svaku prosljeđuje **iz namespace-a klijenta** na `www.ruo.internal:80`. Zahtjev prolazi kroz isti vatrozid kao korisnik s interneta (samo do frontenda), pa se politika izolacije ne mijenja. WSL2 prosljeđuje `localhost` u Windows, pa adresa radi i u pregledniku na Windowsu.
+
+```bash
+make open       # http://localhost:8081 (traži sudo)
+make close      # gasi tunel
 ```
 
 `make all` izvršava redom `check` → `secrets` → `image` → `infra` → `config` → `dns` → `deploy`. Isti tok bez Makefilea, direktnim naredbama:
@@ -463,7 +461,7 @@ terraform/vm/   mreže, diskovi, VM-ovi, ključevi servera, generisani inventory
 terraform/dns/  DNS zapisi: servisi, hostovi, CNAME, TXT, PTR (AO-8)
 cloud-init/     user-data, network-config, meta-data šabloni (AO-4)
 ansible/        config.yml, deploy.yml, teardown.yml; role: router, common, firewall, docker, bind, app
-scripts/        secrets.sh, vault-get.sh, tf-dns.sh, build-images.sh, drift-dns.sh, nsupdate-key.sh, tf-retry.sh
+scripts/        setup.sh, secrets.sh, vault-get.sh, tf-dns.sh, build-images.sh, drift-dns.sh, nsupdate-key.sh, tf-retry.sh
 tests/          run-all.sh (make test), vm.sh, isolation.sh, dns.sh, no-ip-literals.sh, app.sh, persistence.sh, secrets.sh
 docs/adr/       ADR-ovi DO-1 … DO-9
 Makefile        ulaz u sve korake (make help)
@@ -471,7 +469,7 @@ Makefile        ulaz u sve korake (make help)
 
 **Odstupanja od preporučene strukture** (isječak 2 zadatka):
 - `packer/` je dodat jer je bazna slika vlastita Packer slika (DO-4);
-- `scripts/` sadrži pomoćne skripte koje koriste Makefile i testovi (tajne, TSIG za Terraform, drift);
+- `scripts/` sadrži pomoćne skripte koje koriste Makefile i testovi (priprema hosta, tajne, TSIG za Terraform, drift);
 - `docs/adr/` sadrži ADR-ove, iz kojih nastaje PDF;
 - `app/db/` sadrži šemu baze, jer baza koristi zvaničnu sliku bez vlastitog Dockerfilea.
 
