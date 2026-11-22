@@ -99,19 +99,19 @@ API: `GET /api/healthz` (liveness), `GET /api/readyz` (baza odgovara), `GET /api
 
 ## 2. Dizajnerske odluke
 
-Svaka odluka ima ADR u [`docs/adr/`](docs/adr/README.md).
+Svaka odluka ima ADR u [`docs/ADR.md`](docs/ADR.md).
 
 | DO | Izabrana opcija |
 |---|---|
-| [DO-1](docs/adr/DO-1-aplikacija.md) Aplikacija | vlastita „Bilješke": nginx · FastAPI · PostgreSQL |
-| [DO-2](docs/adr/DO-2-raspored-vm.md) VM-ovi | 4 VM-a (ns1, web1, app1, db1), libvirt `route` mreže, host je ruter s default deny, kontejneri na mreži VM-a |
-| [DO-3](docs/adr/DO-3-adresiranje.md) Adresiranje | jedan literal `10.20.0.0/16`, `cidrsubnet`/`cidrhost`, statički preko netplana, bez DHCP-a |
-| [DO-4](docs/adr/DO-4-bazna-slika.md) Bazna slika | Packer: Ubuntu 24.04 + Docker, nftables, BIND, chrony/ptp_kvm; cloud-init samo za instancu |
-| [DO-5](docs/adr/DO-5-slike-kontejnera.md) Slike kontejnera | build jednom na kontrolnom čvoru, oznaka = hash koda, bazne slike po digestu, isporuka kao arhiva |
-| [DO-6](docs/adr/DO-6-inventory.md) Inventory | Terraform generiše inventory, adresni plan i `known_hosts` |
-| [DO-7](docs/adr/DO-7-ansible-role.md) Ansible | role po funkciji; mrežna politika kao podaci |
-| [DO-8](docs/adr/DO-8-dns-zona.md) DNS zona | `ruo.internal` + reverzna; jedan vlasnik po zapisu; TSIG ključ po zoni i tipu |
-| [DO-9](docs/adr/DO-9-tajne.md) Tajne | generisanje pri prvom pokretanju + ansible-vault; datoteke 0400; test historije |
+| [DO-1](docs/ADR.md#do-1-aplikacija-i-tehnologije-slojeva) Aplikacija | vlastita „Bilješke": nginx · FastAPI · PostgreSQL |
+| [DO-2](docs/ADR.md#do-2-broj-virtuelnih-mašina-i-raspored-komponenti) VM-ovi | 4 VM-a (ns1, web1, app1, db1), libvirt `route` mreže, host je ruter s default deny, kontejneri na mreži VM-a |
+| [DO-3](docs/ADR.md#do-3-plan-adresiranja) Adresiranje | jedan literal `10.20.0.0/16`, `cidrsubnet`/`cidrhost`, statički preko netplana, bez DHCP-a |
+| [DO-4](docs/ADR.md#do-4-bazna-slika-vm-a) Bazna slika | Packer: Ubuntu 24.04 + Docker, nftables, BIND, chrony/ptp_kvm; cloud-init samo za instancu |
+| [DO-5](docs/ADR.md#do-5-izgradnja-i-distribucija-slika-kontejnera) Slike kontejnera | build jednom na kontrolnom čvoru, oznaka = hash koda, bazne slike po digestu, isporuka kao arhiva |
+| [DO-6](docs/ADR.md#do-6-kako-ansible-dobija-adrese-vm-ova-koje-je-kreirao-terraform) Inventory | Terraform generiše inventory, adresni plan i `known_hosts` |
+| [DO-7](docs/ADR.md#do-7-organizacija-ansible-rola-i-varijabli) Ansible | 4 role po funkciji, kratki koraci u playbooku; mrežna politika kao podaci |
+| [DO-8](docs/ADR.md#do-8-dizajn-dns-zone) DNS zona | `ruo.internal` + reverzna; jedan vlasnik po zapisu; TSIG ključ po zoni i tipu |
+| [DO-9](docs/ADR.md#do-9-upravljanje-tajnama) Tajne | generisanje pri prvom pokretanju + ansible-vault; datoteke 0400; test historije |
 
 ## 3. Plan adresiranja i izolacija slojeva
 
@@ -244,7 +244,7 @@ make close      # gasi tunel
 | slika | `packer init packer && packer build -var image_tag=<hash> -var output_dir=build/image-<hash> packer` |
 | VM-ovi | `terraform -chdir=terraform/vm init && terraform -chdir=terraform/vm apply` |
 | konfiguracija | `cd ansible && ansible-playbook config.yml -K` |
-| DNS zapisi | `bash scripts/tf-dns.sh init && bash scripts/tf-dns.sh apply` (TSIG iz vaulta) |
+| DNS zapisi | `bash scripts/lib.sh tf-dns init && bash scripts/lib.sh tf-dns apply` (TSIG iz vaulta) |
 | isporuka | `bash scripts/build-images.sh && cd ansible && ansible-playbook deploy.yml` |
 
 **Trajanje** (izmjereno, slika u kešu): `make all` od praznog sistema **1 min 11 s**. Prva izgradnja zlatne slike traje dodatnih 5–8 min.
@@ -286,7 +286,7 @@ make dev-up && make dev-test      # http://localhost:8080 (make dev-down gasi, m
 
 ## 5. DNS zona i zapisi kao kod
 
-`terraform/dns` upravlja zapisima kroz RFC 2136 (DNS UPDATE) potpisan TSIG ključem (AO-8). Adrese čita iz outputa `terraform/vm` (`terraform_remote_state`), a TSIG tajne dobija iz vaulta kroz `TF_VAR_*` (`scripts/tf-dns.sh`).
+`terraform/dns` upravlja zapisima kroz RFC 2136 (DNS UPDATE) potpisan TSIG ključem (AO-8). Adrese čita iz outputa `terraform/vm` (`terraform_remote_state`), a TSIG tajne dobija iz vaulta kroz `TF_VAR_*` (`scripts/lib.sh tf-dns`).
 
 | Zapis | Vlasnik |
 |---|---|
@@ -456,8 +456,8 @@ Pojedinačno: `make test-vm`, `test-isolation`, `test-dns`, `test-ip`, `test-app
 | AO-1 | `app/*/Dockerfile`, `app/compose.yaml` (profili po sloju), nginx → backend → baza | `tests/app.sh` |
 | AO-2 | `Makefile` (`all`, `destroy`) | ciklus destroy → all → test → all |
 | AO-3 | `terraform/vm` (varijable s validacijom, outputi, state u `.gitignore`) | `tests/vm.sh` (plan exit 0) |
-| AO-4 | `cloud-init/user-data.tftpl` (`ssh_pwauth: false`, `lock_passwd: true`) | `tests/vm.sh` (ključ da, lozinka ne) |
-| AO-5 | `ansible/roles/*` | drugi run: `changed=0` (odjeljak 7) |
+| AO-4 | `terraform/vm/cloud-init/user-data.tftpl` (`ssh_pwauth: false`, `lock_passwd: true`) | `tests/vm.sh` (ključ da, lozinka ne) |
+| AO-5 | `ansible/config.yml`, `ansible/deploy.yml`, `ansible/roles/*` | drugi run: `changed=0` (odjeljak 7) |
 | AO-6 | libvirt route mreže, role `router` i `firewall`, `network_mode: host` | `tests/isolation.sh` |
 | AO-7 | rola `bind`, imena u compose/nginx/backend | `tests/dns.sh`, `tests/no-ip-literals.sh` |
 | AO-8 | `terraform/dns`, `update-policy` po ključu | `tests/dns.sh`, `make drift-dns` |
@@ -481,20 +481,21 @@ U Gitu je samo `ansible/inventory/group_vars/all/vault.yml.example`. `make destr
 ```
 app/            frontend/, backend/, db/init/; compose.yaml (VM-ovi), compose.dev.yaml (lokalno)
 packer/         zlatna slika VM-ova: ruo-base.pkr.hcl, seed/, scripts/provision.sh
-terraform/vm/   mreže, diskovi, VM-ovi, ključevi servera, generisani inventory (AO-3)
-terraform/dns/  DNS zapisi: servisi, hostovi, CNAME, TXT, PTR (AO-8)
-cloud-init/     user-data, network-config, meta-data šabloni (AO-4)
-ansible/        config.yml, deploy.yml, teardown.yml; role: router, common, firewall, docker, bind, app
-scripts/        setup.sh, secrets.sh, vault-get.sh, tf-dns.sh, build-images.sh, drift-dns.sh, nsupdate-key.sh, tf-retry.sh
+terraform/vm/   main.tf (mreže, ključevi servera, diskovi, VM-ovi, datoteke za Ansible), variables.tf,
+                locals.tf (adresni plan), outputs.tf; cloud-init/ (user-data, network-config, AO-4)
+terraform/dns/  main.tf (DNS zapisi: servisi, hostovi, CNAME, TXT, PTR), variables.tf, outputs.tf (AO-8)
+ansible/        config.yml, deploy.yml, teardown.yml; role: router, firewall, bind, app
+scripts/        setup.sh, secrets.sh, build-images.sh, drift-dns.sh, build-pdf.sh; lib.sh (vault-get, tf-dns,
+                tf-retry, nsupdate-key)
 tests/          run-all.sh (make test), vm.sh, isolation.sh, dns.sh, no-ip-literals.sh, app.sh, persistence.sh, secrets.sh
-docs/adr/       ADR-ovi DO-1 … DO-9
+docs/ADR.md     ADR-ovi DO-1 … DO-9 (iz njih nastaje PDF)
 Makefile        ulaz u sve korake (make help)
 ```
 
 **Odstupanja od preporučene strukture** (isječak 2 zadatka):
 - `packer/` je dodat jer je bazna slika vlastita Packer slika (DO-4);
 - `scripts/` sadrži pomoćne skripte koje koriste Makefile i testovi (priprema hosta, tajne, TSIG za Terraform, drift);
-- `docs/adr/` sadrži ADR-ove, iz kojih nastaje PDF;
+- `docs/ADR.md` sadrži ADR-ove, iz kojih nastaje PDF;
 - `app/db/` sadrži šemu baze, jer baza koristi zvaničnu sliku bez vlastitog Dockerfilea.
 
 **Preuzeto iz repozitorija predmeta i prilagođeno:**
@@ -515,6 +516,6 @@ Makefile        ulaz u sve korake (make help)
 - **Jedan DNS server** (nema sekundarnog): svjesno prihvaćen SPOF u labu (DO-8).
 - **Jedna instanca po sloju.** Round-robin je pripremljen (`var.servisi`), ali nije aktivan.
 - **Frontend radi na HTTP-u, bez TLS-a.** U produkciji bi certifikat izdavao ACME, i to DNS-01 izazovom kroz isti RFC 2136 mehanizam.
-- **Povremena greška libvirt providera 0.8:** odmah nakon kreiranja cloud-init ISO-a provider ga ponekad ne uspije pročitati (`corrupted-image: EOF`). ISO je ispravan (provjereno `isoinfo`), a sljedeće izvršavanje prolazi. `scripts/tf-retry.sh` ponavlja naredbu jednom, ali **samo za tu poruku**. Ako se obični `terraform plan` pokrene u prvoj minuti nakon `apply`, rijetko se može vidjeti ova greška; ponovno pokretanje je rješava.
+- **Povremena greška libvirt providera 0.8:** odmah nakon kreiranja cloud-init ISO-a provider ga ponekad ne uspije pročitati (`corrupted-image: EOF`). ISO je ispravan (provjereno `isoinfo`), a sljedeće izvršavanje prolazi. `scripts/lib.sh tf-retry` ponavlja naredbu jednom, ali **samo za tu poruku**. Ako se obični `terraform plan` pokrene u prvoj minuti nakon `apply`, rijetko se može vidjeti ova greška; ponovno pokretanje je rješava.
 - **Ubuntu 26.04 koristi `sudo-rs`**, koji ne radi s Ansible `become`. Na hostu se zato koristi klasični `sudo.ws` (`group_vars/hypervisor.yml`); sistemska postavka se ne mijenja.
 - Kolekcija `ansible.posix` koristi interne API-je koje novi ansible-core najavljuje za uklanjanje. Ta upozorenja su za autore kolekcije i ne utiču na rezultat, pa ih `ansible.cfg` ne ispisuje (`deprecation_warnings = False`).

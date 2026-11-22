@@ -36,10 +36,49 @@ locals {
 
   # Otisak svega što ulazi u cloud-init jednog VM-a (šabloni, adresa, slika, ključ administratora).
   # Bez tajni, pa nije "sensitive" i može biti dio imena ISO-a i instance-id.
-  cloudinit_templates = join("", [for f in fileset("${local.repo_root}/cloud-init", "*.tftpl") : file("${local.repo_root}/cloud-init/${f}")])
+  cloudinit_templates = join("", [for f in fileset("${path.module}/cloud-init", "*.tftpl") : file("${path.module}/cloud-init/${f}")])
   cloudinit_hash = {
     for name, h in local.hosts : name => substr(sha256(jsonencode([
       local.cloudinit_templates, h, local.image_tag, local.admin_pubkey, var.zone, local.dns_ip, var.admin_user,
     ])), 0, 10)
+  }
+}
+
+# Sadržaj datoteka za Ansible (DO-6; datoteke piše main.tf): inventory i adresni plan.
+locals {
+  ansible_dir = "${local.repo_root}/ansible"
+
+  inventory = {
+    all = {
+      children = {
+        hypervisor = {
+          hosts = { localhost = { ansible_connection = "local" } }
+        }
+        vms = {
+          children = {
+            for seg in keys(var.segments) : seg => {
+              hosts = { for name, h in local.hosts : name => { ansible_host = h.ip } if h.segment == seg }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  generated_vars = {
+    ruo_zone         = var.zone
+    ruo_project_cidr = var.project_cidr
+    ruo_dns_server   = local.dns_ip
+    ruo_dns_host     = var.dns_host
+    ruo_segments     = { for name, s in local.segments : name => { cidr = s.cidr, gateway = s.gateway, bridge = s.bridge } }
+    ruo_hosts        = { for name, h in local.hosts : name => { ip = h.ip, segment = h.segment, fqdn = h.fqdn, data_disk = h.data_disk_gb > 0 } }
+    ruo_client       = local.client
+    ruo_image_tag    = local.image_tag
+    ruo_admin_user   = var.admin_user
+
+    # konekcija prema VM-ovima: ključ administratora i known_hosts iz Terraforma (bez isključivanja provjere)
+    ansible_user                 = var.admin_user
+    ansible_ssh_private_key_file = local.admin_key_path
+    ansible_ssh_common_args      = "-o UserKnownHostsFile=${local.ansible_dir}/known_hosts -o StrictHostKeyChecking=yes"
   }
 }

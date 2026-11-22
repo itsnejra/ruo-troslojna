@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PDF za predaju: naslovna strana, opis aplikacije i arhitekture, tabela DO-1..DO-9 i 9 ADR-ova.
-# Izvor su isti Markdown ADR-ovi iz docs/adr/, pa PDF i repozitorij ne mogu reći različite stvari.
+# Izvor je isti docs/ADR.md kao u repozitoriju, pa PDF i repozitorij ne mogu reći različite stvari.
 #
 #   Markdown -> HTML: pandoc (zvanična Docker slika, zaključana digestom)
 #   HTML -> PDF:      Chromium/Chrome ako postoji, inače Microsoft Edge s Windowsa (WSL2)
@@ -20,9 +20,11 @@ mkdir -p "$OUT"
 # naslovna strana: autor i link na repozitorij
 sed -e "s#@@AUTOR@@#${AUTOR}#g" -e "s#@@REPO@@#${REPO_URL}#g" docs/pdf/uvod.md > "$OUT/uvod.md"
 cp docs/pdf/stil.css "$OUT/stil.css"
+# ADR-ovi bez uvodne tabele (ona je već u uvod.md) i bez razdjelnika: svaki ADR počinje novom stranom
+sed -n '/^# DO-1:/,$p' docs/ADR.md | sed '/^---$/d' > "$OUT/adr.md"
 
 docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/data" -w /data "$PANDOC" \
-  "$OUT/uvod.md" docs/adr/DO-{1,2,3,4,5,6,7,8,9}-*.md \
+  "$OUT/uvod.md" "$OUT/adr.md" \
   --standalone --from gfm+yaml_metadata_block --to html5 \
   --metadata title="Troslojna aplikacija kao kod" --metadata lang=bs \
   --css "$OUT/stil.css" --embed-resources \

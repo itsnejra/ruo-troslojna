@@ -25,7 +25,7 @@ tvrdi ".vault_pass je ignorisan u Gitu" git check-ignore -q .vault_pass
 # Stvarne vrijednosti se traže u svim verzijama svih datoteka u svim granama.
 # git grep -F: vrijednost se ne ispisuje, nego samo da li postoji.
 for ime in vault_db_password vault_tsig_tf_ruo vault_tsig_tf_ptr; do
-  v="$(bash scripts/vault-get.sh "$ime")"
+  v="$(bash scripts/lib.sh vault-get "$ime")"
   # shellcheck disable=SC2046
   if git grep -qF -- "$v" $(git rev-list --all) 2>/dev/null; then nadjeno=da; else nadjeno=ne; fi
   tvrdi "vrijednost $ime se ne pojavljuje ni u jednom commitu" test "$nadjeno" = ne

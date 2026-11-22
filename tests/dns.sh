@@ -34,8 +34,8 @@ tvrdi "odgovor je autoritativan (zastavica aa)" grep -q 'flags:.* aa' <<< "$(dig
 tvrdi "nepostojeće ime: NXDOMAIN" grep -q 'status: NXDOMAIN' <<< "$(dig @"$NS" "nema.$ZONA" A)"
 tvrdi "tuđa domena: REFUSED (nije rekurzivni server)" grep -q 'status: REFUSED' <<< "$(dig @"$NS" example.com A)"
 tvrdi "AXFR bez ključa: odbijen" grep -q 'Transfer failed' <<< "$(dig @"$NS" "$ZONA" AXFR)"
-kljuc_ruo="$(bash scripts/nsupdate-key.sh tf-ruo vault_tsig_tf_ruo)"
-kljuc_ptr="$(bash scripts/nsupdate-key.sh tf-ptr vault_tsig_tf_ptr)"
+kljuc_ruo="$(bash scripts/lib.sh nsupdate-key tf-ruo vault_tsig_tf_ruo)"
+kljuc_ptr="$(bash scripts/lib.sh nsupdate-key tf-ptr vault_tsig_tf_ptr)"
 trap 'rm -f "$kljuc_ruo" "$kljuc_ptr"' EXIT
 n_axfr="$(dig -k "$kljuc_ruo" @"$NS" "$ZONA" AXFR | grep -c "IN")"
 tvrdi "AXFR s ključem tf-ruo: dozvoljen ($n_axfr zapisa)" test "$n_axfr" -gt 5
@@ -57,7 +57,7 @@ tvrdi "web1: backend -> ${IP[app1]}" test "$(ssh "${S[@]}" "ops@${IP[web1]}" "ge
 tvrdi "app1: db -> ${IP[db1]}" test "$(ssh "${S[@]}" "ops@${IP[app1]}" "getent ahostsv4 db.$ZONA | awk 'NR==1{print \$1}'")" = "${IP[db1]}"
 
 echo "== AO-8: terraform plan za DNS"
-bash scripts/tf-dns.sh plan -input=false -detailed-exitcode >/dev/null 2>&1; rc=$?
+bash scripts/lib.sh tf-dns plan -input=false -detailed-exitcode >/dev/null 2>&1; rc=$?
 tvrdi "terraform/dns: plan bez promjena (exit $rc)" test "$rc" = 0
 
 echo; [ "$GRESKE" = 0 ] && echo "DNS: sve provjere su prošle." || { echo "DNS: neuspjelih provjera: $GRESKE"; exit 1; }

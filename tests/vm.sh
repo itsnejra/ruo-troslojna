@@ -16,7 +16,7 @@ USR="$(terraform -chdir=terraform/vm output -raw admin_user 2>/dev/null || echo 
 SSH_OPT=(-n -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=ansible/known_hosts)
 
 echo "== AO-3: terraform plan nakon apply"
-bash scripts/tf-retry.sh terraform -chdir=terraform/vm plan -input=false -detailed-exitcode >/dev/null 2>&1; rc=$?
+bash scripts/lib.sh tf-retry terraform -chdir=terraform/vm plan -input=false -detailed-exitcode >/dev/null 2>&1; rc=$?
 tvrdi "terraform/vm: plan bez promjena (exit $rc)" test "$rc" = 0
 
 echo "== AO-4: VM-ovi, cloud-init i SSH"

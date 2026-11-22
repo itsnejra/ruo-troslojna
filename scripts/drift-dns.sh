@@ -10,7 +10,7 @@ ZONA="$(terraform -chdir=terraform/vm output -raw zone)"
 NS="$(terraform -chdir=terraform/vm output -raw dns_server)"
 DB_IP="$(dig +short @"$NS" "db.$ZONA" A | head -1)"
 POGRESNA="${DB_IP%.*}.99"          # ista podmreža, pogrešan host
-kljuc="$(bash scripts/nsupdate-key.sh tf-ruo vault_tsig_tf_ruo)"; trap 'rm -f "$kljuc"' EXIT
+kljuc="$(bash scripts/lib.sh nsupdate-key tf-ruo vault_tsig_tf_ruo)"; trap 'rm -f "$kljuc"' EXIT
 korak() { printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
 
 korak "0. stanje prije: backend i db"
@@ -32,14 +32,14 @@ echo "backend.$ZONA -> '$(dig +short @"$NS" "backend.$ZONA" A)'   (nema ga)"
 echo "db.$ZONA      -> $(dig +short @"$NS" "db.$ZONA" A)   (pogrešna adresa)"
 
 korak "2. terraform plan: Terraform vidi razliku (exit 2 = ima promjena)"
-bash scripts/tf-dns.sh plan -input=false -no-color -detailed-exitcode 2>&1 \
+bash scripts/lib.sh tf-dns plan -input=false -no-color -detailed-exitcode 2>&1 \
   | grep -E '^  # |^      [~+-] |^\s+[+-] "|^Plan:'
 echo "exit: ${PIPESTATUS[0]}"
 
 korak "3. terraform apply: stvarnost se vraća na stanje iz koda"
-bash scripts/tf-dns.sh apply -auto-approve -input=false -no-color 2>&1 | grep -E 'Apply complete'
+bash scripts/lib.sh tf-dns apply -auto-approve -input=false -no-color 2>&1 | grep -E 'Apply complete'
 echo "backend.$ZONA -> $(dig +short @"$NS" "backend.$ZONA" A)"
 echo "db.$ZONA      -> $(dig +short @"$NS" "db.$ZONA" A)"
 
 korak "4. terraform plan ponovo: bez promjena"
-bash scripts/tf-dns.sh plan -input=false -no-color -detailed-exitcode 2>&1 | grep -E 'No changes'
+bash scripts/lib.sh tf-dns plan -input=false -no-color -detailed-exitcode 2>&1 | grep -E 'No changes'

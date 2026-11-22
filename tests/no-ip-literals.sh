@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 DOZVOLJENO='^terraform/vm/variables\.tf:'
 # --cached --others --exclude-standard: praćene i nove datoteke, ali ne generisane/ignorisane
 # (generisani inventory s adresama je izlaz Terraforma, ne kod).
-pogoci="$(git ls-files -z --cached --others --exclude-standard -- app ansible terraform cloud-init packer tests scripts Makefile \
+pogoci="$(git ls-files -z --cached --others --exclude-standard -- app ansible terraform packer tests scripts Makefile \
   | xargs -0 grep -nIE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' 2>/dev/null \
   | grep -vE "$DOZVOLJENO" | grep -v '0\.0\.0\.0' | grep -v 'no-ip-literals.sh')"
 

@@ -1,4 +1,4 @@
-# TSIG tajne: dolaze iz šifrovanog vault.yml kroz TF_VAR_* (scripts/tf-dns.sh), nikad s diska u
+# TSIG tajne: dolaze iz šifrovanog vault.yml kroz TF_VAR_* (scripts/lib.sh tf-dns), nikad s diska u
 # čistom obliku (AO-9). sensitive: Terraform ih ne ispisuje u planu ni u izlazu.
 variable "tsig_tf_ruo" {
   description = "TSIG tajna ključa tf-ruo (zona projekta)"

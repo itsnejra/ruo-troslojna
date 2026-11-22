@@ -18,7 +18,7 @@ IMAGE     := $(CURDIR)/$(IMAGE_DIR)/ruo-base.qcow2
 
 SSH_KEY  := $(HOME)/.ssh/ruo_ed25519
 TF_VM    := terraform -chdir=terraform/vm
-TF_DNS   := bash scripts/tf-dns.sh
+TF_DNS   := bash scripts/lib.sh tf-dns
 # -K: sudo lozinka hosta (rola router mijenja host). Ako sudo ne traži lozinku: make ANSIBLE_ARGS= config
 ANSIBLE_ARGS ?= -K
 PLAYBOOK := cd ansible && ansible-playbook
@@ -77,7 +77,7 @@ destroy: ## uklanja sve što je projekat kreirao (zlatna slika i arhive ostaju k
 > @$(call banner,2/4 ruter i namespace klijenta na hostu)
 > @if [ -f ansible/inventory/hosts.yml ]; then $(PLAYBOOK) teardown.yml $(ANSIBLE_ARGS); else echo "nema inventoryja (ruter nije postavljen)"; fi
 > @$(call banner,3/4 VM-ovi + diskovi + mreže)
-> @if [ -s terraform/vm/terraform.tfstate ]; then bash scripts/tf-retry.sh $(TF_VM) destroy -auto-approve -input=false; else echo "nema VM-ova"; fi
+> @if [ -s terraform/vm/terraform.tfstate ]; then bash scripts/lib.sh tf-retry $(TF_VM) destroy -auto-approve -input=false; else echo "nema VM-ova"; fi
 > @$(call banner,4/4 generisane datoteke + stanje + tajne)
 > rm -f ansible/inventory/hosts.yml ansible/inventory/group_vars/all/generated.yml ansible/known_hosts
 > rm -f terraform/vm/terraform.tfstate* terraform/dns/terraform.tfstate*
@@ -89,7 +89,7 @@ destroy: ## uklanja sve što je projekat kreirao (zlatna slika i arhive ostaju k
 
 ##@ Za odbranu i pregled
 infra-plan: ## Terraform plan za VM-ove (nakon apply očekivano: No changes)
-> bash scripts/tf-retry.sh $(TF_VM) plan -input=false
+> bash scripts/lib.sh tf-retry $(TF_VM) plan -input=false
 
 dns-plan: ## Terraform plan za DNS zapise (nakon apply očekivano: No changes)
 > $(TF_DNS) plan -input=false
@@ -138,7 +138,7 @@ image: ## Packer: zlatna slika VM-ova (preskače se ako slika za trenutni kod po
 infra: ssh-key image ## Terraform: mreže, diskovi, VM-ovi, inventory i known_hosts (AO-3)
 > @$(call need,terraform)
 > $(TF_VM) init -input=false
-> bash scripts/tf-retry.sh $(TF_VM) apply -auto-approve -input=false
+> bash scripts/lib.sh tf-retry $(TF_VM) apply -auto-approve -input=false
 
 config: secrets ## Ansible: ruter na hostu, vatrozid, Docker, DNS server (AO-5, AO-6, AO-7)
 > @$(call need,ansible-playbook)
@@ -184,7 +184,7 @@ test-secrets: ## AO-9: nijedna tajna nije u Gitu (ni u historiji)
 > bash tests/secrets.sh
 
 ##@ Ostalo
-pdf: ## PDF za predaju iz docs/adr (REPO_URL=https://... make pdf)
+pdf: ## PDF za predaju iz docs/ADR.md (REPO_URL=https://... make pdf)
 > bash scripts/build-pdf.sh
 
 distclean: destroy ## destroy + zlatna slika, arhive slika, Terraform provideri i lokalne Docker slike
