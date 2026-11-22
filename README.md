@@ -99,7 +99,7 @@ API: `GET /api/healthz` (liveness), `GET /api/readyz` (baza odgovara), `GET /api
 
 ## 2. Dizajnerske odluke
 
-Svaka odluka ima ADR u [`docs/ADR.md`](docs/ADR.md).
+Svaka odluka ima ADR u [`docs/ADR.md`](docs/ADR.md). PDF za predaju (opis, tabela odluka i svi ADR-ovi): [`docs/RuO-projekat-Nejra-Smajlovic.pdf`](docs/RuO-projekat-Nejra-Smajlovic.pdf), pravi ga `make pdf`.
 
 | DO | Izabrana opcija |
 |---|---|
@@ -488,14 +488,14 @@ ansible/        config.yml, deploy.yml, teardown.yml; role: router, firewall, bi
 scripts/        setup.sh, secrets.sh, build-images.sh, drift-dns.sh, build-pdf.sh; lib.sh (vault-get, tf-dns,
                 tf-retry, nsupdate-key)
 tests/          run-all.sh (make test), vm.sh, isolation.sh, dns.sh, no-ip-literals.sh, app.sh, persistence.sh, secrets.sh
-docs/ADR.md     ADR-ovi DO-1 … DO-9 (iz njih nastaje PDF)
+docs/           ADR.md (ADR-ovi DO-1 … DO-9) i PDF za predaju, koji make pdf pravi iz njih
 Makefile        ulaz u sve korake (make help)
 ```
 
 **Odstupanja od preporučene strukture** (isječak 2 zadatka):
 - `packer/` je dodat jer je bazna slika vlastita Packer slika (DO-4);
 - `scripts/` sadrži pomoćne skripte koje koriste Makefile i testovi (priprema hosta, tajne, TSIG za Terraform, drift);
-- `docs/ADR.md` sadrži ADR-ove, iz kojih nastaje PDF;
+- `docs/` sadrži ADR-ove (`ADR.md`) i PDF za predaju, koji nastaje iz njih;
 - `app/db/` sadrži šemu baze, jer baza koristi zvaničnu sliku bez vlastitog Dockerfilea.
 
 **Preuzeto iz repozitorija predmeta i prilagođeno:**

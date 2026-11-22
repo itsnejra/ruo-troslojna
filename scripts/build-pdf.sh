@@ -12,6 +12,7 @@ cd "$(dirname "$0")/.."
 PANDOC="pandoc/core:3.6@sha256:5b8a29d9b70d5d8ca766e5d1dcfc41916b23ab79276a80527be70516110f4c1e"
 OUT=build/pdf
 IME=RuO-projekat-troslojna-aplikacija
+PREDAJA=RuO-projekat-Nejra-Smajlovic.pdf   # ime PDF-a za predaju, u docs/
 AUTOR="${AUTOR:-$(git config user.name)}"
 REPO_URL="${REPO_URL:-$(git remote get-url origin 2>/dev/null | sed -E 's#^git@([^:]+):#https://\1/#; s#\.git$##' || true)}"
 REPO_URL="${REPO_URL:-(link na repozitorij)}"
@@ -46,3 +47,7 @@ else
   cp "$WTMP/$IME.pdf" "$OUT/$IME.pdf"; rm -rf "$WTMP"
 fi
 [ -s "$OUT/$IME.pdf" ] && echo "PDF:  $OUT/$IME.pdf ($(du -h "$OUT/$IME.pdf" | cut -f1)), repozitorij u dokumentu: $REPO_URL"
+
+# Kopija u repozitoriju (docs/), da se PDF vidi i na GitHubu. Nakon izmjene ADR-a: make pdf + commit.
+cp "$OUT/$IME.pdf" "docs/$PREDAJA"
+echo "kopija: docs/$PREDAJA"
