@@ -77,7 +77,7 @@ Cijeli tok je `make destroy` → `make all` (1 min 11 s od praznog sistema) → 
 | DO-4 | Bazna slika VM-a | vlastita Packer slika (Ubuntu 24.04 + Docker, nftables, BIND, chrony/ptp_kvm); cloud-init samo za instancu |
 | DO-5 | Slike kontejnera | build jednom na kontrolnom čvoru; oznaka = hash koda; bazne slike po digestu; isporuka kao arhiva (bez registryja) |
 | DO-6 | Adrese VM-ova za Ansible | Terraform generiše inventory, adresni plan i `known_hosts` (ključevi servera iz Terraforma) |
-| DO-7 | Ansible role i varijable | role po funkciji (router, firewall, bind, app), kratki koraci u playbooku; mrežna politika kao podaci; `vault_` prefiks |
+| DO-7 | Ansible role i varijable | role po funkciji (router, firewall, docker, bind, app); sva konfiguracija servera u rolama; mrežna politika kao podaci; `vault_` prefiks |
 | DO-8 | DNS zona | `ruo.internal` + reverzna; jedan vlasnik po zapisu; TSIG ključ po zoni i tipu zapisa; TTL 300 s; bez sekundarnog |
 | DO-9 | Tajne | generisanje pri prvom pokretanju + ansible-vault; datoteke 0400 umjesto varijabli okruženja; test historije |
 

@@ -158,7 +158,7 @@ Svaka odluka ima ADR u [`docs/ADR.md`](docs/ADR.md), a iz njih `make pdf` pravi 
 | [DO-4](docs/ADR.md#do-4-bazna-slika-vm-a) Bazna slika | Packer: Ubuntu 24.04 + Docker, nftables, BIND, chrony/ptp_kvm; cloud-init samo za instancu |
 | [DO-5](docs/ADR.md#do-5-izgradnja-i-distribucija-slika-kontejnera) Slike kontejnera | build jednom na kontrolnom čvoru, oznaka = hash koda, bazne slike po digestu, isporuka kao arhiva |
 | [DO-6](docs/ADR.md#do-6-kako-ansible-dobija-adrese-vm-ova-koje-je-kreirao-terraform) Inventory | Terraform generiše inventory, adresni plan i `known_hosts` |
-| [DO-7](docs/ADR.md#do-7-organizacija-ansible-rola-i-varijabli) Ansible | 4 role po funkciji, kratki koraci u playbooku; mrežna politika kao podaci |
+| [DO-7](docs/ADR.md#do-7-organizacija-ansible-rola-i-varijabli) Ansible | 5 rola po funkciji, sva konfiguracija servera u rolama; mrežna politika kao podaci |
 | [DO-8](docs/ADR.md#do-8-dizajn-dns-zone) DNS zona | `ruo.internal` + reverzna; jedan vlasnik po zapisu; TSIG ključ po zoni i tipu |
 | [DO-9](docs/ADR.md#do-9-upravljanje-tajnama) Tajne | generisanje pri prvom pokretanju + ansible-vault; datoteke 0400; test historije |
 
@@ -170,7 +170,7 @@ packer/         zlatna slika VM-ova: ruo-base.pkr.hcl, seed/, scripts/provision.
 terraform/vm/   main.tf (mreže, ključevi servera, diskovi, VM-ovi, datoteke za Ansible), variables.tf,
                 locals.tf (adresni plan), outputs.tf; cloud-init/ (user-data, network-config, AO-4)
 terraform/dns/  main.tf (DNS zapisi: servisi, hostovi, CNAME, TXT, PTR), variables.tf, outputs.tf (AO-8)
-ansible/        config.yml, deploy.yml, teardown.yml; role: router, firewall, bind, app
+ansible/        config.yml, deploy.yml, teardown.yml; role: router, firewall, docker, bind, app
 scripts/        setup.sh, secrets.sh, build-images.sh, drift-dns.sh, build-pdf.sh; lib.sh (vault-get, tf-dns,
                 tf-retry, nsupdate-key)
 tests/          run-all.sh (make test), vm.sh, isolation.sh, dns.sh, no-ip-literals.sh, app.sh, persistence.sh, secrets.sh
@@ -484,11 +484,11 @@ terraform/vm:   No changes. Your infrastructure matches the configuration.
                 Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
 
 config.yml:     PLAY RECAP
-                app1       : ok=9    changed=0    unreachable=0    failed=0    skipped=1
-                db1        : ok=9    changed=0    unreachable=0    failed=0    skipped=1
+                app1       : ok=8    changed=0    unreachable=0    failed=0    skipped=1
+                db1        : ok=8    changed=0    unreachable=0    failed=0    skipped=1
                 localhost  : ok=6    changed=0    unreachable=0    failed=0    skipped=1
-                ns1        : ok=13   changed=0    unreachable=0    failed=0    skipped=1
-                web1       : ok=9    changed=0    unreachable=0    failed=0    skipped=1
+                ns1        : ok=12   changed=0    unreachable=0    failed=0    skipped=1
+                web1       : ok=8    changed=0    unreachable=0    failed=0    skipped=1
 
 terraform/dns:  No changes. Your infrastructure matches the configuration.
 

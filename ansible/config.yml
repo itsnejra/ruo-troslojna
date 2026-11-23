@@ -1,6 +1,6 @@
 # make config: osnovna konfiguracija infrastrukture (AO-5). Idempotentno: drugo izvršavanje changed=0.
 # Isporuka aplikacije je zasebno (deploy.yml), jer zavisi i od DNS zapisa (make dns).
-# Role su samo za veće cjeline (router, firewall, bind, app); kratki koraci su ovdje, u playbooku.
+# Sve što mijenja servere je u rolama; u playbooku je samo čekanje da VM-ovi budu spremni.
 
 - name: Ruter i namespace klijenta (host)
   hosts: hypervisor
@@ -8,13 +8,13 @@
   gather_facts: false
   roles: [router]
 
-- name: Osnova i vatrozid svih VM-ova
+- name: Vatrozid svih VM-ova
   hosts: vms
   become: true
   gather_facts: false     # činjenice se skupljaju tek kad VM odgovara i cloud-init završi
 
   # Obrazac iz s3/p3: VM dobije adresu prije nego cloud-init završi, pa se prvo čeka,
-  # inače bi prvo izvršavanje nasumično padalo.
+  # inače bi prvo izvršavanje nasumično padalo. Ovi koraci ništa ne mijenjaju na serveru.
   pre_tasks:
     - name: Čekaj da SSH postane dostupan
       ansible.builtin.wait_for_connection:
@@ -30,58 +30,13 @@
     - name: Prikupi činjenice
       ansible.builtin.setup:
 
-    - name: Direktorij konfiguracije projekta
-      ansible.builtin.file:
-        path: /etc/ruo
-        state: directory
-        owner: root
-        group: root
-        mode: "0755"
-
   roles: [firewall]
 
-# Docker je u zlatnoj slici, ali isključen (DO-4): ovdje dobija konfiguraciju i tek onda se pokreće,
-# pa nikad ne radi sa zadanim postavkama (bridge + iptables).
 - name: Docker na VM-ovima aplikacije
   hosts: web:app:db
   become: true
   gather_facts: false
-
-  vars:
-    # Kontejneri koriste mrežu VM-a (network_mode: host, DO-2), pa Docker ne treba ni bridge ni
-    # iptables. Time je nftables VM-a jedini vatrozid i nema DNAT-a koji bi ga zaobišao.
-    docker_daemon:
-      iptables: false
-      ip6tables: false
-      ip-forward: false
-      bridge: none
-      live-restore: true            # restart dockerd ne gasi kontejnere
-      log-driver: json-file
-      log-opts:
-        max-size: "10m"
-        max-file: "3"
-
-  tasks:
-    - name: Konfiguracija Docker daemona
-      ansible.builtin.copy:
-        content: "{{ docker_daemon | to_nice_json }}\n"
-        dest: /etc/docker/daemon.json
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Restartuj docker
-
-    - name: Docker radi i pokreće se s VM-om
-      ansible.builtin.service:
-        name: docker
-        state: started
-        enabled: true
-
-  handlers:
-    - name: Restartuj docker
-      ansible.builtin.service:
-        name: docker
-        state: restarted
+  roles: [docker]
 
 - name: Autoritativni DNS
   hosts: infra
