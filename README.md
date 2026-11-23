@@ -36,7 +36,7 @@ make destroy                 # uklanja sve
 | opis aplikacije i arhitekture, dijagram stvarnog rasporeda | [1](#1-aplikacija-i-arhitektura) |
 | plan adresiranja i način izolacije slojeva | [2](#2-plan-adresiranja-i-izolacija-slojeva) |
 | upute od praznog računara: podizanje, test, uklanjanje | [8](#8-pokretanje-od-praznog-računara), [9](#9-tok-make-all-korak-po-korak) |
-| izlaz testova (izolacija, dig, aplikacija) | [10.1](#101-izlaz-testova) |
+| izlaz testova (izolacija, dig upiti, aplikacija) | [10.1](#101-izlaz-testova), uz ručne `dig` upite |
 | izlaz drugog izvršavanja Ansiblea (idempotentnost) | [10.2](#102-idempotentnost) |
 | opis drifta s izlazom `terraform plan` i ispravkom | [10.3](#103-drift) |
 | obrazloženje odstupanja od preporučene strukture | [7](#7-struktura-repozitorija) |
@@ -437,7 +437,7 @@ Isti tok bez Makefilea, direktnim naredbama:
 
 ######## AO-10      perzistencija podataka baze
   ok: upis (HTTP 201)
-  ok: kontejner je nov (ID 14df338e2680 -> d65d1e17308a)     [docker compose up --force-recreate]
+  ok: kontejner je nov (ID 02d288092226 -> b3a942e588d0)     [docker compose up --force-recreate]
   ok: podatak je i dalje tu
   ok: podatak je i dalje tu                                   [docker rm -f, pa ponovo]
      /dev/vdb /srv/pgdata ext4
@@ -445,7 +445,7 @@ Isti tok bez Makefilea, direktnim naredbama:
 
 ######## AO-9       tajne nisu u Gitu (ni u historiji)
   ok: nijedna datoteka s tajnom ili stanjem nije praćena sada
-  ok: nijedna takva datoteka nije ni u historiji (12 commitova)
+  ok: nijedna takva datoteka nije ni u historiji (39 commitova)
   ok: vault.yml je šifrovan (AES256)
   ok: vrijednost vault_db_password se ne pojavljuje ni u jednom commitu
   ok: vrijednost vault_tsig_tf_ruo se ne pojavljuje ni u jednom commitu
@@ -464,6 +464,24 @@ Svi testovi su prošli.
 ```
 
 Pojedinačno: `make test-vm`, `test-isolation`, `test-dns`, `test-ip`, `test-app`, `test-persist`, `test-secrets`.
+
+**Dig upiti ručno** (s hosta, prema DNS serveru ns1):
+
+```text
+$ dig +short @10.20.0.53 backend.ruo.internal
+10.20.2.10
+$ dig +short @10.20.0.53 db.ruo.internal
+10.20.3.10
+$ dig +short @10.20.0.53 www.ruo.internal
+frontend.ruo.internal.
+10.20.1.10
+$ dig +short @10.20.0.53 -x 10.20.2.10
+app1.ruo.internal.
+$ dig @10.20.0.53 google.com | grep status
+status: REFUSED
+$ dig @10.20.0.53 nema.ruo.internal | grep status
+status: NXDOMAIN
+```
 
 **Matrica sljedivosti** (gdje je svaka AO ostvarena i čime se dokazuje):
 
@@ -498,9 +516,9 @@ config.yml:     PLAY RECAP
 terraform/dns:  No changes. Your infrastructure matches the configuration.
 
 deploy.yml:     PLAY RECAP
-                app1       : ok=8    changed=0    unreachable=0    failed=0    skipped=4
-                db1        : ok=12   changed=0    unreachable=0    failed=0    skipped=0
-                web1       : ok=7    changed=0    unreachable=0    failed=0    skipped=5
+                app1       : ok=9    changed=0    unreachable=0    failed=0    skipped=4
+                db1        : ok=13   changed=0    unreachable=0    failed=0    skipped=0
+                web1       : ok=8    changed=0    unreachable=0    failed=0    skipped=5
 ```
 
 Kako se to postiže:
