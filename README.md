@@ -29,18 +29,6 @@ make test                    # svi testovi
 make destroy                 # uklanja sve
 ```
 
-### Gdje je šta što zadatak traži od README-a
-
-| Zahtjev (zadatak, poglavlje 4) | Odjeljak |
-|---|---|
-| opis aplikacije i arhitekture, dijagram stvarnog rasporeda | [1](#1-aplikacija-i-arhitektura) |
-| plan adresiranja i način izolacije slojeva | [2](#2-plan-adresiranja-i-izolacija-slojeva) |
-| upute od praznog računara: podizanje, test, uklanjanje | [8](#8-pokretanje-od-praznog-računara), [9](#9-tok-make-all-korak-po-korak) |
-| izlaz testova (izolacija, dig upiti, aplikacija) | [10.1](#101-izlaz-testova), uz ručne `dig` upite |
-| izlaz drugog izvršavanja Ansiblea (idempotentnost) | [10.2](#102-idempotentnost) |
-| opis drifta s izlazom `terraform plan` i ispravkom | [10.3](#103-drift) |
-| obrazloženje odstupanja od preporučene strukture | [7](#7-struktura-repozitorija) |
-
 ## Sadržaj
 
 1. [Aplikacija i arhitektura](#1-aplikacija-i-arhitektura)
