@@ -75,30 +75,13 @@ API: `GET /api/healthz` (liveness), `GET /api/readyz` (baza odgovara), `GET /api
 
 ![Stvarni raspored: host je ruter između četiri segmenta; dozvoljeni su samo tokovi internet → web1 :80, web1 → app1 :8000, app1 → db1 :5432 i svi → ns1 :53](docs/dijagram.png)
 
-Izvor slike je [`docs/dijagram.svg`](docs/dijagram.svg). Isti raspored u tekstu:
-
-```
- Windows 11 ─ WSL2 Ubuntu (host = hipervizor KVM/libvirt + RUTER + kontrolni čvor: make, Terraform, Ansible, Packer, Docker)
- │
- │  ruo-klijent (netns, "internet")          nftables: table inet ruo3t
- │  10.20.255.2 ──veth── 10.20.255.1 (host)  forward: default DENY za promet projektnih sučelja
- │                              │
- │       ┌──────────────────────┼───────────────────────┬────────────────────────┐
- │  ruo-infra 10.20.0.0/24  ruo-web 10.20.1.0/24    ruo-app 10.20.2.0/24     ruo-db 10.20.3.0/24      (libvirt, mode=route)
- │   ┌──────────────┐        ┌──────────────┐        ┌──────────────┐        ┌───────────────────┐
- │   │ ns1  .53     │        │ web1 .10     │  8000  │ app1 .10     │  5432  │ db1 .10           │
- │   │ BIND 9.18    │        │ [frontend]   │ ─────▶ │ [backend]    │ ─────▶ │ [baza] PostgreSQL │
- │   │ ruo.internal │        │ nginx :80    │        │ FastAPI      │        │ disk vdb → pgdata │
- │   └──────────────┘        └──────────────┘        └──────────────┘        └───────────────────┘
- │     ▲ 53 (svi)               ▲ 80 (samo klijent)     ▲ 8000 (samo web)       ▲ 5432 (samo app)
- │
- └─ upravljanje: host → svi VM-ovi :22 (samo ključ) ; host → ns1:53 (Terraform, RFC 2136 + TSIG)
-```
+Izvor slike je [`docs/dijagram.svg`](docs/dijagram.svg).
 
 - Svaki sloj je na **svom VM-u** u **svom segmentu**. Kontejner koristi mrežu svog VM-a (`network_mode: host`), pa **nijedan kontejner nema objavljen port**, a nftables VM-a je jedini vatrozid na VM-u (DO-2).
 - Promet između segmenata prolazi kroz host, gdje vatrozid propušta samo politikom dozvoljene tokove.
 - Segmenti **nemaju izlaz na internet**: paketi su u zlatnoj slici, a slike kontejnera stižu s kontrolnog čvora.
 - Sat VM-ova je sinhronizovan sa satom hipervizora (`chrony` + `ptp_kvm`), bez mreže (DO-4).
+- Upravljanje ide samo s hosta: SSH na sve VM-ove (samo ključem) i DNS UPDATE prema ns1 (Terraform, RFC 2136 + TSIG).
 
 ## 2. Plan adresiranja i izolacija slojeva
 
