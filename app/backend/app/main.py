@@ -1,4 +1,4 @@
-"""Backend sloj aplikacije "Bilješke": REST API nad PostgreSQL bazom.
+"""Backend sloj aplikacije "Trezor" (povjerljive bilješke): REST API nad PostgreSQL bazom.
 
 Pravila koja ovaj modul provodi:
   * konfiguracija dolazi isključivo iz okruženja (12-factor); u kodu nema adresa,
@@ -77,7 +77,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="Bilješke",
+    title="Trezor",
     version=os.environ.get("APP_VERSION", "dev"),
     lifespan=lifespan,
     docs_url="/api/docs",

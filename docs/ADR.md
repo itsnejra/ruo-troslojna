@@ -4,7 +4,7 @@ Svaka dizajnerska odluka (DO) iz projektnog zadatka ima jedan zapis, prema obras
 
 | DO | Pitanje | Izabrana opcija |
 |---|---|---|
-| [DO-1](#do-1-aplikacija-i-tehnologije-slojeva) | Aplikacija i tehnologije | vlastita aplikacija „Bilješke": nginx 1.27.5 · FastAPI (Python 3.12) · PostgreSQL 17.12 |
+| [DO-1](#do-1-aplikacija-i-tehnologije-slojeva) | Aplikacija i tehnologije | vlastita aplikacija „Trezor" (povjerljive bilješke): nginx 1.27.5 · FastAPI (Python 3.12) · PostgreSQL 17.12 |
 | [DO-2](#do-2-broj-virtuelnih-mašina-i-raspored-komponenti) | Broj VM-ova i raspored | 4 VM-a (ns1, web1, app1, db1), libvirt `route` mreže, host je ruter s default deny, kontejneri na mreži VM-a |
 | [DO-3](#do-3-plan-adresiranja) | Plan adresiranja | jedan literal `10.20.0.0/16`, segmenti `/24` (`cidrsubnet`), adrese `cidrhost`, statički preko netplana, bez DHCP-a |
 | [DO-4](#do-4-bazna-slika-vm-a) | Bazna slika VM-a | vlastita Packer slika (Ubuntu 24.04 + Docker, nftables, BIND, chrony/ptp_kvm); cloud-init samo za instancu |
@@ -35,7 +35,7 @@ Na odbrani se može pitati za bilo koji fajl, pa je svaka linija aplikacije grad
 
 ## Odluka
 
-Opcija 3: vlastita aplikacija „Bilješke".
+Opcija 3: vlastita aplikacija **„Trezor"** za povjerljive bilješke (npr. interne napomene tima koje ne smiju izaći van).
 
 | Sloj | Tehnologija | Uloga |
 |---|---|---|
@@ -46,6 +46,7 @@ Opcija 3: vlastita aplikacija „Bilješke".
 ## Obrazloženje i posljedice
 
 Šta se dobija:
+- **Povjerljivi podaci daju smisao zaštiti.** Baza čuva sadržaj koji ne smije procuriti, pa je cilj infrastrukture da napadač koji preuzme izloženi frontend nema put do baze, i da podaci ne mogu izaći van. Iz tog cilja dolaze baza u vlastitom segmentu bez objavljenog porta i bez izlaza na internet (DO-2), zaštita na tri nivoa i tajne kao šifrovane datoteke (DO-9).
 - **Kod koji se može objasniti red po red.** Backend ima oko 140 redova, frontend jednu stranicu.
 - **Smisleno dokazive AO.** Upis i čitanje bilješke prolaze kroz sva tri sloja (AO-1). Podatak u PostgreSQL-u preživljava `docker compose up --force-recreate` i `docker rm -f` (AO-10).
 - **Konfiguracija samo iz okruženja.** Adrese su DNS imena (`DB_HOST=db.ruo.internal`), a lozinka se čita iz datoteke (`DB_PASSWORD_FILE`), jer se varijable okruženja vide u `docker inspect`.

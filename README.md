@@ -59,7 +59,9 @@ make destroy                 # uklanja sve
 
 ## 1. Aplikacija i arhitektura
 
-**„Bilješke"** je vlastita, namjerno mala aplikacija (DO-1): na stranicu se upiše bilješka, ona se sačuva u bazu i prikaže u listi. Aplikacija nije predmet ocjenjivanja; služi da se kroz sva tri sloja prođe stvarnim zahtjevom i stvarnim podacima.
+**„Trezor"** je vlastita, namjerno mala aplikacija za **povjerljive bilješke** (DO-1): na stranicu se upiše bilješka, ona se sačuva u bazu i prikaže u listi.
+
+Podaci su povjerljivi, pa je cilj cijele infrastrukture: **napadač koji preuzme izloženi frontend nema put do baze, a podaci ne mogu izaći van.** Iz tog cilja dolaze baza u vlastitom segmentu bez objavljenog porta, segmenti bez izlaza na internet, zaštita na tri nivoa i tajne kao šifrovane datoteke. Aplikacija sama nije predmet ocjenjivanja; služi da se kroz sva tri sloja prođe stvarnim zahtjevom i stvarnim podacima.
 
 | Sloj | Tehnologija | Kontejner | Adresira sljedeći sloj |
 |---|---|---|---|
@@ -175,7 +177,7 @@ Svaka odluka ima ADR u [`docs/ADR.md`](docs/ADR.md), a iz njih `make pdf` pravi 
 
 | DO | Izabrana opcija |
 |---|---|
-| [DO-1](docs/ADR.md#do-1-aplikacija-i-tehnologije-slojeva) Aplikacija | vlastita „Bilješke": nginx · FastAPI · PostgreSQL |
+| [DO-1](docs/ADR.md#do-1-aplikacija-i-tehnologije-slojeva) Aplikacija | vlastita „Trezor" (povjerljive bilješke): nginx · FastAPI · PostgreSQL |
 | [DO-2](docs/ADR.md#do-2-broj-virtuelnih-mašina-i-raspored-komponenti) VM-ovi | 4 VM-a (ns1, web1, app1, db1), libvirt `route` mreže, host je ruter s default deny, kontejneri na mreži VM-a |
 | [DO-3](docs/ADR.md#do-3-plan-adresiranja) Adresiranje | jedan literal `10.20.0.0/16`, `cidrsubnet`/`cidrhost`, statički preko netplana, bez DHCP-a |
 | [DO-4](docs/ADR.md#do-4-bazna-slika-vm-a) Bazna slika | Packer: Ubuntu 24.04 + Docker, nftables, BIND, chrony/ptp_kvm; cloud-init samo za instancu |

@@ -21,7 +21,7 @@ lang: bs
 
 ## Aplikacija
 
-„Bilješke" je vlastita, namjerno mala web aplikacija: korisnik upiše bilješku, ona se sačuva u bazu i prikaže u listi. Aplikacija nije predmet ocjenjivanja. Služi da kroz sva tri sloja prođe stvaran zahtjev sa stvarnim podacima, i da se može objasniti red po red.
+„Trezor" je vlastita, namjerno mala web aplikacija za povjerljive bilješke: korisnik upiše bilješku, ona se sačuva u bazu i prikaže u listi. Podaci su povjerljivi, pa je cilj infrastrukture da napadač koji preuzme izloženi frontend nema put do baze i da podaci ne mogu izaći van; iz tog cilja dolaze odluke DO-2 i DO-9. Aplikacija nije predmet ocjenjivanja: služi da kroz sva tri sloja prođe stvaran zahtjev sa stvarnim podacima, i da se može objasniti red po red.
 
 | Sloj | Tehnologija | Adresira sljedeći sloj |
 |---|---|---|
@@ -79,7 +79,7 @@ Cijeli tok je `make destroy` → `make all` (1 min 11 s od praznog sistema) → 
 
 | DO | Pitanje | Izabrana opcija |
 |---|---|---|
-| DO-1 | Aplikacija i tehnologije | vlastita aplikacija „Bilješke": nginx · FastAPI (Python) · PostgreSQL |
+| DO-1 | Aplikacija i tehnologije | vlastita aplikacija „Trezor" (povjerljive bilješke): nginx · FastAPI (Python) · PostgreSQL |
 | DO-2 | Broj VM-ova i raspored | 4 VM-a (ns1, web1, app1, db1); libvirt `route` mreže; host je ruter s default deny; DNS na zasebnom VM-u; kontejneri na mreži VM-a |
 | DO-3 | Plan adresiranja | jedan literal `10.20.0.0/16`; segmenti `/24` (`cidrsubnet`), adrese `cidrhost`; statičke adrese preko netplana, bez DHCP-a |
 | DO-4 | Bazna slika VM-a | vlastita Packer slika (Ubuntu 24.04 + Docker, nftables, BIND, chrony/ptp_kvm); cloud-init samo za instancu |
