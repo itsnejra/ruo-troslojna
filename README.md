@@ -521,20 +521,34 @@ Rola `router` i rola `firewall` provjeravaju i **stanje jezgre**, ne samo datote
 
 ### 10.3 Drift
 
-`make drift-dns` (`scripts/drift-dns.sh`) mijenja zapise koje posjeduje Terraform **mimo koda**, alatom `nsupdate`, isto kao s5/p2:
+**Drift** je razlika između koda i stvarnog stanja, nastala ručnom izmjenom mimo koda. Kod kaže da je `db.ruo.internal` → `10.20.3.10`; ako neko ručno promijeni zapis, backend bi slao podatke na pogrešnu adresu. Terraform tu razliku mora vidjeti (`plan`) i ispraviti (`apply`).
+
+`make drift-dns` (`scripts/drift-dns.sh`) to pokazuje na DNS zapisima, isto kao s5/p2: alatom `nsupdate` (RFC 2136, isti TSIG ključ) **briše** zapis `backend` i **mijenja** `db` u pogrešnu adresu, pa pokrene `terraform plan` i `apply`. Izlaz s izmjerenog pokretanja:
 
 ```text
+== 0. stanje prije: backend i db
+backend.ruo.internal -> 10.20.2.10
+db.ruo.internal      -> 10.20.3.10
+
 == 1. DRIFT: nsupdate briše backend i mijenja adresu za db (mimo Terraforma)
+$ nsupdate -k tf-ruo.key
 backend.ruo.internal -> ''   (nema ga)
 db.ruo.internal      -> 10.20.3.99   (pogrešna adresa)
 
 == 2. terraform plan: Terraform vidi razliku (exit 2 = ima promjena)
   # dns_a_record_set.servis["backend"] will be created
+      + addresses = [
+          + "10.20.2.10",
+      + id        = (known after apply)
+      + name      = "backend"
+      + ttl       = 300
+      + zone      = "ruo.internal."
   # dns_a_record_set.servis["db"] will be updated in-place
       ~ addresses = [
           - "10.20.3.99",
           + "10.20.3.10",
 Plan: 1 to add, 1 to change, 0 to destroy.
+exit: 2
 
 == 3. terraform apply: stvarnost se vraća na stanje iz koda
 Apply complete! Resources: 1 added, 1 changed, 0 destroyed.
