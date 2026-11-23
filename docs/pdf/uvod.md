@@ -33,15 +33,7 @@ lang: bs
 
 Sistem čine četiri virtuelne mašine na KVM/libvirt hipervizoru (WSL2). Svaki sloj aplikacije radi u svom Docker kontejneru, na svom VM-u, u svom mrežnom segmentu. Autoritativni DNS je na zasebnom VM-u u infrastrukturnom segmentu. Host usmjerava promet između segmenata i na njemu je centralni vatrozid s pravilom „sve je zabranjeno osim nabrojanog". Svaki VM ima i vlastiti vatrozid. „Internet" je mrežni namespace spojen na host, pa njegov promet prolazi kroz ruter kao pravi promet izvana.
 
-<pre class="dijagram">
- klijent (internet) 10.20.255.2 ──▶ HOST = ruter + vatrozid (nftables, default deny za projektna sučelja)
-                                      │
-     ┌────────────────────┬───────────┴─────────┬──────────────────────┐
-  infra 10.20.0.0/24   web 10.20.1.0/24      app 10.20.2.0/24       db 10.20.3.0/24
-  ns1 .53              web1 .10              app1 .10               db1 .10
-  BIND (ruo.internal)  [frontend] nginx ──▶  [backend] FastAPI ──▶  [baza] PostgreSQL
-                         :80 (samo klijent)    :8000 (samo web)       :5432 (samo app), disk vdb
-</pre>
+![Stvarni raspored: host je ruter između četiri segmenta; dozvoljeni su samo tokovi internet → web1 :80, web1 → app1 :8000, app1 → db1 :5432 i svi → ns1 :53](docs/dijagram.png)
 
 | Tok | Port | Dozvoljen |
 |---|---|---|

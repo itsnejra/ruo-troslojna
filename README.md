@@ -73,6 +73,10 @@ API: `GET /api/healthz` (liveness), `GET /api/readyz` (baza odgovara), `GET /api
 
 ### Stvarni raspored
 
+![Stvarni raspored: host je ruter između četiri segmenta; dozvoljeni su samo tokovi internet → web1 :80, web1 → app1 :8000, app1 → db1 :5432 i svi → ns1 :53](docs/dijagram.png)
+
+Izvor slike je [`docs/dijagram.svg`](docs/dijagram.svg). Isti raspored u tekstu:
+
 ```
  Windows 11 ─ WSL2 Ubuntu (host = hipervizor KVM/libvirt + RUTER + kontrolni čvor: make, Terraform, Ansible, Packer, Docker)
  │
