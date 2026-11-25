@@ -422,7 +422,7 @@ Isti tok bez Makefilea, direktnim naredbama:
 
 ######## AO-9       tajne nisu u Gitu (ni u historiji)
   ok: nijedna datoteka s tajnom ili stanjem nije praćena sada
-  ok: nijedna takva datoteka nije ni u historiji (39 commitova)
+  ok: nijedna takva datoteka nije ni u historiji (31 commitova)
   ok: vault.yml je šifrovan (AES256)
   ok: vrijednost vault_db_password se ne pojavljuje ni u jednom commitu
   ok: vrijednost vault_tsig_tf_ruo se ne pojavljuje ni u jednom commitu
